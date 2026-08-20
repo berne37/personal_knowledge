@@ -7,7 +7,8 @@ const menuList = ref<MenuItem[]>([
   { path: '/', name: '知识库' },
   { path: '/chat', name: 'AI对话' },
   { path: '/mindmap', name: '思维导图' },
-  { path: '/projects', name: '项目进度' }
+  { path: '/pdf', name: 'PDF阅读' },
+  { path: '/projects', name: '项目进度' },
 ])
 </script>
 
@@ -65,6 +66,7 @@ li:hover {
 
 .content {
   flex: 1;
+  min-width: 0;
   padding: 30px;
 }
 </style>

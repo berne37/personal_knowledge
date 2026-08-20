@@ -1,7 +1,7 @@
 
 <template>
   <div class="chat-container">
-    <h2>💬 AI 对话助手</h2>
+    <h2> AI 对话助手</h2>
     
     <div class="message-list" ref="messageListRef">
       <div 

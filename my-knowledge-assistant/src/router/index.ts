@@ -7,13 +7,14 @@ import KnowledgeView from '@/views/KnowledgeView.vue';
 import ChatView from '@/views/ChatView.vue';
 import MindmapView from '@/views/MindmapView.vue';
 import ProjectView from '@/views/ProjectView.vue';
-
+import PDFView from '@/views/PDFView.vue'
 // 定义路由配置，显式声明类型为 RouteRecordRaw[]
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'Knowledge', component: KnowledgeView },
   { path: '/chat', name: 'Chat', component: ChatView },
   { path: '/mindmap', name: 'Mindmap', component: MindmapView },
-  { path: '/projects', name: 'Project', component: ProjectView }
+  { path: '/projects', name: 'Project', component: ProjectView },
+  { path: '/pdf', name: 'PDF', component: PDFView }
 ]
 
 const router = createRouter({
