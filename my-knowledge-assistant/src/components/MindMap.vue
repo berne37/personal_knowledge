@@ -58,9 +58,9 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   min-height: 500px;
-  border: 1px solid #e8ecf1;
-  border-radius: 8px;
-  background: white;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-bg-white);
   overflow: hidden;
 }
 

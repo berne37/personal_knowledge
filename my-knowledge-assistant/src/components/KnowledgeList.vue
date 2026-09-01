@@ -4,6 +4,8 @@
       v-for="item in props.items"
       :key="item.id"
       :item="item"
+      :expandedId="props.expandedId"
+      @go-to-Detail="$emit('go-to-Detail', $event)"
       @delete="handleDelete"
     />
   </ul>
@@ -21,11 +23,13 @@ import KnowledgeItem from './KnowledgeItem.vue';
 // 父传子：接收整个数组
 const props = defineProps<{
   items: KnowledgeItemType[];
+  expandedId: number | null;
 }>();
 
 // 子传父：转发删除事件
 const emit = defineEmits<{
   (e: 'delete', id: number): void;
+  (e: 'go-to-Detail', item: KnowledgeItemType): void;
 }>();
 
 function handleDelete(id: number) {

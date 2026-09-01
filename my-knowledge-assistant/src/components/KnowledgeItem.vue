@@ -37,25 +37,25 @@ function handleDelete() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
-  border-bottom: 1px solid #eee;
+  padding: 12px var(--spacing-md);
+  border-bottom: 1px solid var(--color-border-light);
 }
 .item-info {
   display: flex;
-  gap: 16px;
+  gap: var(--spacing-md);
   align-items: center;
 }
 .level {
   padding: 2px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  color: white;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  color: #fff;
 }
-.level.已学会 { background: #42b983; }
-.level.学习中 { background: #f39c12; }
-.level.待学习 { background: #e74c3c; }
+.level.已学会 { background: var(--color-success); }
+.level.学习中 { background: var(--color-warning); }
+.level.待学习 { background: var(--color-danger); }
 .date {
-  font-size: 12px;
-  color: #999;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-placeholder);
 }
 </style>

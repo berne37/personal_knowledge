@@ -48,7 +48,7 @@ function handleSubmit() {
 </script>
 
 <style scoped>
-.add-form { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-.add-form input, .add-form select { padding: 8px 12px; border: 1px solid #ccc; border-radius: 6px; }
-.add-form button { padding: 8px 16px; background: #42b983; color: white; border: none; border-radius: 6px; cursor: pointer; }
+.add-form { display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-md); flex-wrap: wrap; }
+.add-form input, .add-form select { padding: var(--spacing-sm) 12px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.add-form button { padding: var(--spacing-sm) var(--spacing-md); background: var(--color-primary); color: #fff; border: none; border-radius: var(--radius-sm); cursor: pointer; }
 </style>

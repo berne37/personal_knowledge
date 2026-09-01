@@ -1,7 +1,7 @@
 <template>
   <div class="mindmap-view">
     <div class="header">
-      <h2>🧠 思维导图</h2>
+      <h2>思维导图</h2>
       <div class="actions">
         <!-- 使用 store 中的 isLoading -->
         <button @click="generateFromKnowledge" :disabled="store.isLoading">
@@ -85,47 +85,47 @@ async function generateFromKnowledge() {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
-  padding: 0 4px;
+  margin-bottom: var(--spacing-md);
+  padding: 0 var(--spacing-xs);
 }
 .header h2 { margin: 0; }
 .actions {
   display: flex;
-  gap: 12px;
+  gap: var(--spacing-sm);
 }
 .actions button {
-  padding: 8px 16px;
-  background: #42b983;
-  color: white;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-primary);
+  color: #fff;
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-md);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: background var(--transition-normal);
 }
 .actions button:disabled {
-  background: #aaa;
+  background: var(--color-text-light);
   cursor: not-allowed;
 }
 .actions button:hover:not(:disabled) {
-  background: #3aa876;
+  background: var(--color-primary-hover);
 }
 .error {
-  padding: 12px;
-  background: #fee;
-  color: #c33;
-  border-radius: 6px;
-  margin-bottom: 16px;
+  padding: var(--spacing-sm);
+  background: var(--color-bg-hover);
+  color: var(--color-danger);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-md);
 }
 .placeholder {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #999;
-  font-size: 16px;
-  border: 1px dashed #ddd;
-  border-radius: 8px;
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-md);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
   min-height: 300px;
 }
 .loading {
@@ -134,15 +134,15 @@ async function generateFromKnowledge() {
   align-items: center;
   justify-content: center;
   min-height: 300px;
-  color: #666;
+  color: var(--color-text-secondary);
 }
 .typing-dots span {
   display: inline-block;
   width: 8px;
   height: 8px;
-  background: #42b983;
-  border-radius: 50%;
-  margin: 0 4px;
+  background: var(--color-primary);
+  border-radius: var(--radius-full);
+  margin: 0 var(--spacing-xs);
   animation: typing 1.4s infinite both;
 }
 .typing-dots span:nth-child(2) { animation-delay: 0.2s; }

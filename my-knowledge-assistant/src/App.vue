@@ -38,8 +38,9 @@ const menuList = ref<MenuItem[]>([
 
 .sidebar {
   width: 200px;
-  background: #f5f7fa;
-  padding: 20px;
+  background: var(--color-bg-hover);
+  border-right: 1px solid var(--color-bg-border);
+  padding: var(--spacing-lg);
 }
 
 ul {
@@ -49,14 +50,14 @@ ul {
 }
 
 li {
-  padding: 12px 16px;
-  margin: 4px 0;
-  border-radius: 8px;
-  transition: background 0.2s;
+  padding: 12px var(--spacing-md);
+  margin: var(--spacing-xs) 0;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-normal);
 }
 
 li:hover {
-  background: #e8ecf1;
+  background: var(--color-bg-border);
 }
 
 .nav-link {
@@ -67,6 +68,6 @@ li:hover {
 .content {
   flex: 1;
   min-width: 0;
-  padding: 30px;
+  padding: var(--spacing-xl);
 }
 </style>

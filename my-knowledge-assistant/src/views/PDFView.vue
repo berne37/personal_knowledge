@@ -628,21 +628,21 @@ window.addEventListener('resize', handleResize)
 .pdf-view {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 20px;
+  padding: var(--spacing-md);
 }
 
 .toolbar {
   position: fixed;
   z-index: 1000;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  padding: 8px 12px;
+  background: var(--color-bg-white);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-sm) 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--spacing-sm);
   flex-wrap: wrap;
-  border: 1px solid #e8ecf1;
+  border: 1px solid var(--color-border);
   user-select: none;
   cursor: default;
   /* 初始位置由 style 控制 */
@@ -650,14 +650,14 @@ window.addEventListener('resize', handleResize)
 
 .toolbar-drag-handle {
   cursor: grab;
-  color: #999;
+  color: var(--color-text-placeholder);
   padding: 0 6px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   letter-spacing: 2px;
   user-select: none;
 }
 .toolbar-drag-handle:hover {
-  color: #333;
+  color: var(--color-text);
 }
 .toolbar-drag-handle:active {
   cursor: grabbing;
@@ -665,61 +665,61 @@ window.addEventListener('resize', handleResize)
 
 .upload-btn {
   display: inline-block;
-  padding: 8px 16px;
-  background: #42b983;
-  color: white;
-  border-radius: 6px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
+  font-size: var(--font-size-md);
+  transition: background var(--transition-fast);
 }
 .upload-btn:hover {
-  background: #3aa876;
+  background: var(--color-primary-hover);
 }
 .upload-btn input {
   display: none;
 }
 
 .divider {
-  color: #ccc;
-  margin: 0 4px;
+  color: var(--color-divider);
+  margin: 0 var(--spacing-xs);
 }
 
 .pdf-wrapper {
   position: relative;
   display: inline-block;
   line-height: 0;
-  transition: transform 0.05s ease-out; /* 可选：让拖拽更平滑 */
+  transition: transform var(--transition-fast); /* 可选：让拖拽更平滑 */
 }
 
 .tool-btn {
   padding: 6px 14px;
   border: 2px solid transparent;
-  border-radius: 6px;
-  background: white;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-white);
   cursor: pointer;
-  font-size: 14px;
-  transition: all 0.2s;
+  font-size: var(--font-size-md);
+  transition: all var(--transition-normal);
 }
 .tool-btn:hover {
-  background: #e8ecf1;
+  background: var(--color-bg-hover);
 }
 .tool-btn.active {
-  border-color: #42b983;
-  background: #e6f7ed;
+  border-color: var(--color-primary);
+  background: var(--color-bg-primary);
 }
 
 .page-controls {
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin: 12px 0;
+  gap: var(--spacing-md);
+  margin: var(--spacing-sm) 0;
 }
 .page-controls button {
-  padding: 6px 16px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: white;
+  padding: 6px var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-white);
   cursor: pointer;
 }
 .page-controls button:disabled {
@@ -729,12 +729,12 @@ window.addEventListener('resize', handleResize)
 
 /* ====== 关键修复：PDF 容器 ====== */
 .pdf-container {
-  border: 1px solid #e8ecf1;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   overflow: auto;
-  background: #fafbfc;
+  background: var(--color-bg);
   min-height: 500px;
-  padding: 16px;
+  padding: var(--spacing-md);
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -772,8 +772,8 @@ window.addEventListener('resize', handleResize)
   justify-content: center;
   align-items: center;
   min-height: 400px;
-  color: #999;
-  font-size: 18px;
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-lg);
 }
 
 .loading {
@@ -781,20 +781,20 @@ window.addEventListener('resize', handleResize)
   justify-content: center;
   align-items: center;
   min-height: 400px;
-  color: #666;
-  font-size: 18px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-lg);
 }
 
 .zoom-display {
   display: inline-block;
   min-width: 48px;
   text-align: center;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  color: #333;
-  background: white;
+  color: var(--color-text);
+  background: var(--color-bg-white);
   padding: 4px 8px;
-  border-radius: 4px;
-  border: 1px solid #ddd;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
 }
 </style>
