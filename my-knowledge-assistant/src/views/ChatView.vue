@@ -127,7 +127,6 @@ async function sendMessage() {
       scrollToBottom()
     }
   )
-  console.log('环境变量:', import.meta.env.VITE_AI_API_KEY)
 }
 
 function scrollToBottom() {

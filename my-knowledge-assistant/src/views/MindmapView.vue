@@ -15,7 +15,7 @@
     
     <!-- 使用 store 中的 errorMessage -->
     <div v-if="store.errorMessage" class="error">
-      ❌ {{ store.errorMessage }}
+       {{ store.errorMessage }}
     </div>
 
     <!-- 使用 store 中的 mindMapData 和 isLoading -->
@@ -37,11 +37,13 @@
 
 <script setup lang="ts">
 // 使用 store
-import { useMindmapStore } from '@/stores/mindmapStrore'
+import { useMindmapStore } from '@/stores/mindmapStore'
+import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import { generateMindMapWithAI } from '@/services/mindMap'
 import MindMap from '@/components/MindMap.vue'
 
 const store = useMindmapStore()
+const knowledgeStore = useKnowledgeStore()
 
 // 使用 store 中的方法
 function handleLocalGenerate() {
@@ -55,7 +57,27 @@ async function generateFromKnowledge() {
   store.setData(null)
 
   try {
+    // 「空知识库」的检查挪到这里了。
+    // 以前是 generateMindMapWithAI 自己读 store 判断的，现在它只认传进来的数据，
+    // 这个「全库视角」的判断就该由全库页面自己负责。
+    if (knowledgeStore.items.length === 0) {
+      store.setError('知识库为空，请先添加技能或资料')
+      store.setLoading(false)
+      return
+    }
+
+    // 全库视图没有天然的「根条目」，所以造一个虚拟根节点把全部根条目包起来。
+    // MindMapSource 只要求 title / description / level / children 四个字段，
+    // 所以不用去伪造 id、createdAt、updatedAt 这些跟画图无关的东西 —— 这就是当初用 Pick 的好处。
+    const virtualRoot = {
+      title: '我的知识库',
+      description: '',
+      level: '学习中' as const,
+      children: knowledgeStore.items,
+    }
+
     await generateMindMapWithAI(
+      virtualRoot,
       undefined,
       (data) => {
         store.setData(data)
@@ -77,9 +99,11 @@ async function generateFromKnowledge() {
 .mindmap-view {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: 100vh;
   max-width: 1200px;
   margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
 }
 .header {
   display: flex;
