@@ -1,65 +1,216 @@
 <template>
   <div>
-    <h2>知识库管理</h2>
-    <!-- 表单子组件：监听 add 事件 -->
-     <KnowledgeForm @add="handleAdd" />
-      <!-- 列表子组件：传入数据，监听 delete 事件 -->
-       <KnowledgeList :items="store.items"
-       :expandedId="expandedId"
-       @go-to-Detail="goToDetail"
-        @delete="handleDelete" />
+    <div class="header">
+      <h2>知识库管理</h2>
+      <button class="btn btn-primary" @click="showAddModal = true">
+        ＋ 添加知识库
+      </button>
+    </div>
+
+    <!-- 搜索 + 筛选栏 -->
+    <div class="toolbar">
+      <input
+        v-model="searchKeyword"
+        class="search-input"
+        placeholder="搜索知识库..."
+      />
+      <div class="filter-group">
+        <button
+          v-for="opt in filterOptions"
+          :key="opt.label"
+          class="filter-btn"
+          :class="{ active: filterLevel === opt.value }"
+          @click="filterLevel = opt.value"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+      <span class="result-count">共 {{ filteredItems.length }} 条</span>
+    </div>
+
+    <!-- 列表 -->
+    <KnowledgeList
+      :items="filteredItems"
+      :expandedId="expandedId"
+      @go-detail="goToDetail"
+      @delete="handleDelete"
+      @updated="store.loadItems"
+    />
+
+    <!-- 添加知识库弹窗 -->
+    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
+      <div class="modal">
+        <h3>添加知识库</h3>
+        <KnowledgeForm @add="handleAdd" @cancel="showAddModal = false" />
+      </div>
+    </div>
   </div>
 </template>
 
-//KnowledgeView 作为“中间人”，不关心 UI 细节，只管理数据（Pinia）。
-//子组件通过事件将数据传上来，父组件调用 store 方法处理。
-
 <script setup lang="ts">
-  import {ref} from 'vue';
-  import {useKnowledgeStore } from '@/stores/knowledgeStore';
-  import type { KnowledgeItem } from '@/types';
-  import KnowledgeList from '@/components/KnowledgeList.vue';
-  import KnowledgeForm from '@/components/KnowledgeForm.vue';
-  import { useRouter } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useKnowledgeStore } from '@/stores/knowledgeStore'
+import type { KnowledgeItem } from '@/types'
+import KnowledgeList from '@/components/KnowledgeList.vue'
+import KnowledgeForm from '@/components/KnowledgeForm.vue'
 
-  const store = useKnowledgeStore();
-  const newDesc = ref(''); 
-  
-  // 表单数据（响应式）
-  const newTitle = ref('');
-  const newDescription = ref('');
-  const newLevel = ref<'已学会' | '学习中' | '待学习'>('学习中');
-  //记录当前展开的是哪个条目
-  const expandedId = ref<number | null>(null)
-  const router = useRouter()
+const store = useKnowledgeStore()
+const router = useRouter()
 
-  // 添加：接收子组件发来的数据，调用 store
-async function handleAdd(formData: { 
-  title: string; 
-  description: string; 
-  level: '已学会' | '学习中' | '待学习' 
+// 弹窗控制
+const showAddModal = ref(false)
+
+// 搜索关键词
+const searchKeyword = ref('')
+
+// 筛选等级
+const filterLevel = ref<string | null>(null)
+
+const filterOptions = [
+  { label: '全部', value: null },
+  { label: '已学会', value: '已学会' },
+  { label: '学习中', value: '学习中' },
+  { label: '待学习', value: '待学习' },
+]
+
+// 展开控制
+const expandedId = ref<number | null>(null)
+
+// 过滤后的列表
+const filteredItems = computed(() => {
+  let items = store.items
+
+  if (filterLevel.value) {
+    items = items.filter((item) => item.level === filterLevel.value)
+  }
+
+  if (searchKeyword.value.trim()) {
+    const keyword = searchKeyword.value.trim().toLowerCase()
+    items = items.filter((item) =>
+      item.title.toLowerCase().includes(keyword)
+    )
+  }
+
+  return items
+})
+
+// 添加
+async function handleAdd(formData: {
+  title: string
+  description: string
+  level: '已学会' | '学习中' | '待学习'
 }) {
-  //增加技能名以及技能描述的非空二次校验
   if (!formData.title.trim()) {
-    alert('技能名称不能为空');
-    return;
+    alert('技能名称不能为空')
+    return
   }
   await store.addItem({
-  title: formData.title,
-  description: formData.description || '',
-  level: formData.level
-})
+    title: formData.title,
+    description: formData.description || '',
+    level: formData.level,
+  })
+  showAddModal.value = false
 }
 
-// 删除：接收子组件发来的 id，调用 store
+// 删除
 async function handleDelete(id: number) {
-  if(confirm('确定删除吗？')) {
-    await store.deleteItem(id);
+  if (confirm('确定删除吗？')) {
+    await store.deleteItem(id)
   }
 }
 
+// 跳转详情
 function goToDetail(item: KnowledgeItem) {
-  // 跳转到详情页，传递 item 的 title
-  router.push({ name: 'KnowledgeDetail', params: { id: item.title } });
+  router.push({ name: 'KnowledgeDetail', params: { title: item.title } })
 }
 </script>
+
+<style scoped>
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg);
+  border-radius: var(--radius-md);
+}
+
+.search-input {
+  flex: 1;
+  min-width: 180px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-md);
+  background: var(--color-bg-white);
+}
+.search-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+.filter-group {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.filter-btn {
+  padding: var(--spacing-xs) var(--spacing-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-white);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: all var(--transition-fast);
+}
+.filter-btn:hover {
+  background: var(--color-bg-hover);
+}
+.filter-btn.active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.result-count {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-placeholder);
+  margin-left: auto;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: var(--color-bg-white);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-lg);
+  min-width: 400px;
+  max-width: 90%;
+  box-shadow: var(--shadow-xl);
+}
+.modal h3 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-md);
+}
+</style>

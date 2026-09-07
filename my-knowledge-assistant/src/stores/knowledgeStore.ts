@@ -103,6 +103,21 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     await loadItems();
   }
 
+  //递归查找
+  function findItemByTitle(title: string): KnowledgeItem | undefined {
+  function search(nodes: KnowledgeItem[]): KnowledgeItem | undefined {
+    for (const node of nodes) {
+      if (node.title === title) return node
+      if (node.children?.length) {
+        const found = search(node.children)
+        if (found) return found
+      }
+    }
+    return undefined
+  }
+  return search(items.value)
+}
+
   // 递归删除条目（含子条目）
   async function deleteItem(id: number) {
     const db = await dbPromise;
@@ -216,5 +231,6 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     deleteItem,
     updateItem,
     countChildren,
+    findItemByTitle,
   };
 });

@@ -16,6 +16,15 @@ export interface KnowledgeItem {
     updatedAt: string
     children:KnowledgeItem[]; // 子技能列表（树形结构递归类型）
     attachments: Attachment[]; // 附件列表（支持图片预览）
+    mindmapData?: MindMapNode | null; // 新增：思维导图数据，可选
+}
+
+//新增思维导图节点类型
+export interface MindMapNode {
+  data: {
+    text: string
+  }
+  children?: MindMapNode[]
 }
 
 // 项目节点（任务/里程碑）

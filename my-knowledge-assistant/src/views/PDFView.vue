@@ -104,6 +104,8 @@
 <script setup lang="ts">
 // ref 用于保存普通响应式数据，shallowRef 用于保存不应被 Vue 深层代理的第三方实例。
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
+// 🔧 新增：PDF 中转 store，用来接收从知识库详情页传过来的 PDF
+import { usePDFStore } from '@/stores/PDFStore'
 // pdfjsLib 负责解析 PDF，worker 用于将解析工作放到独立线程中执行。
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -159,6 +161,15 @@ onMounted(() => {
   toolbarPosition.value = {
     x: window.innerWidth - 260, // 假设工具栏宽度约 240px
     y: 80,
+  }
+
+  // 🔧 新增：如果是从知识库详情页点「阅读」进来的，这里会取到待打开的 PDF。
+  // consume() 取走后会清空，这样下次直接进这个页面不会又自动打开旧文件。
+  const pdfStore = usePDFStore()
+  const pendingUrl = pdfStore.consume()
+  if (pendingUrl) {
+    pdfUrl.value = pendingUrl
+    loadPDF(pendingUrl)
   }
 })
 

@@ -5,7 +5,7 @@
       :key="item.id"
       :item="item"
       :expandedId="props.expandedId"
-      @go-to-Detail="$emit('go-to-Detail', $event)"
+      @go-detail="$emit('go-detail', $event)"
       @delete="handleDelete"
     />
   </ul>
@@ -29,7 +29,7 @@ const props = defineProps<{
 // 子传父：转发删除事件
 const emit = defineEmits<{
   (e: 'delete', id: number): void;
-  (e: 'go-to-Detail', item: KnowledgeItemType): void;
+  (e: 'go-detail', item: KnowledgeItemType): void;
 }>();
 
 function handleDelete(id: number) {
