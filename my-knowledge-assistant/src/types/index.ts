@@ -4,13 +4,15 @@ export interface MenuItem {
     path: string;
     name: string;
     icon?: string;// 属性后面加 ? 表示可选属性
+    tour?: string; // 新手引导用：对应引导步骤的 data-tour 选择器
 }
 
 //新增数据库条目类型(升级为树形结构)
 export interface KnowledgeItem {
      id?: number;          // 自增主键，可选（新增时没有 id）
     title: string;        // 技能名称
-    description: string;  // 描述
+    description: string;  // 短描述（一句话摘要，列表 / 头部展示）
+    notes?: string;       // 长笔记（详情页「文本」标签页的详细内容，可选）
     level: '已学会' | '学习中' | '待学习';  // 掌握程度（联合类型）
     createdAt: string;    // 创建时间
     updatedAt: string

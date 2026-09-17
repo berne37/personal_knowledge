@@ -122,7 +122,8 @@ async function handleDelete(id: number) {
 
 // 跳转详情
 function goToDetail(item: KnowledgeItem) {
-  router.push({ name: 'KnowledgeDetail', params: { title: item.title } })
+  // 🔧 改用 id 跳转（原来用 title，同名条目会跳错）
+  router.push({ name: 'KnowledgeDetail', params: { id: String(item.id) } })
 }
 </script>
 

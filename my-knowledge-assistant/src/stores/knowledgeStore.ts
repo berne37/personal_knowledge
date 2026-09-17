@@ -18,6 +18,23 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   async function loadItems() {
     const db = await dbPromise;
     items.value = await db.getAll('items');
+
+     // 老数据的子条目没有 id，递归补一个并写回数据库
+    let changed = false;
+    function fillId(nodes: KnowledgeItem[]) {
+      for (const node of nodes) {
+        if (node.id == null) {
+          node.id = Date.now() + Math.floor(Math.random() * 1000);
+          changed = true;
+        }
+        if (node.children?.length) fillId(node.children);
+      }
+    }
+    for (const item of items.value) fillId(item.children || [])
+      if(changed) {
+        for(const root of items.value) await db.put('items', root);
+      }
+
     items.value.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
   }
 
@@ -45,6 +62,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     if (!parent) return;
 
     const newChild: KnowledgeItem = {
+      id: Date.now() + Math.floor(Math.random() * 1000), // 子条目也要有唯一 id
       ...childData,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -103,23 +121,56 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     await loadItems();
   }
 
-  //递归查找
-  function findItemByTitle(title: string): KnowledgeItem | undefined {
-  function search(nodes: KnowledgeItem[]): KnowledgeItem | undefined {
-    for (const node of nodes) {
-      if (node.title === title) return node
-      if (node.children?.length) {
-        const found = search(node.children)
-        if (found) return found
+  //递归查找：按标题找条目
+  function findItemByTitle(title: string): KnowledgeItem | null {
+    function search(nodes: KnowledgeItem[]): KnowledgeItem | null {
+      for (const node of nodes) {
+        if (node.title === title) return node
+        if (node.children?.length) {
+          const found = search(node.children)
+          if (found) return found
+        }
       }
+      return null
     }
-    return undefined
+    return search(items.value)
   }
-  return search(items.value)
-}
+
+  // 🔧 按 id 查找条目（含子条目）。路由改用 :id 后靠它取数据。
+  //    标题可以重复，id 不会，所以按 id 找才不会跳错条目。
+  function findItemById(id: number): KnowledgeItem | null {
+    function search(nodes: KnowledgeItem[]): KnowledgeItem | null {
+      for (const node of nodes) {
+        if (node.id === id) return node
+        if (node.children?.length) {
+          const found = search(node.children)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    return search(items.value)
+  }
+
+  // 🔧 找出某个条目的父条目；顶层条目返回 null（写法参考 projectStore.ts:98 的 findParent）
+  //    递归时把「上一层节点」当作 parent 一路传下去，命中目标就返回它。
+  function findParentOfId(id: number): KnowledgeItem | null {
+    function search(nodes: KnowledgeItem[], parent: KnowledgeItem | null): KnowledgeItem | null {
+      for (const node of nodes) {
+        if (node.id === id) return parent
+        if (node.children?.length) {
+          const found = search(node.children, node)
+          if (found) return found
+        }
+      }
+      return null
+    }
+    return search(items.value, null)
+  }
 
   // 递归删除条目（含子条目）
   async function deleteItem(id: number) {
+    if (id == null) return   // 防止删错条目
     const db = await dbPromise;
 
     // 先检查是否是根条目
@@ -158,6 +209,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
 
   // 更新条目（递归查找）
   async function updateItem(id: number, data: Partial<KnowledgeItem>) {
+    if (id == null) return   // 没 id 直接拒绝，避免 undefined === undefined 误命中
     const db = await dbPromise;
 
     // 先检查是否是根条目
@@ -232,5 +284,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     updateItem,
     countChildren,
     findItemByTitle,
+    findItemById,
+    findParentOfId,
   };
 });

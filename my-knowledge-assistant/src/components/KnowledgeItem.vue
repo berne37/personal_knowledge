@@ -1,5 +1,5 @@
 <template>
-  <li>
+  <li class="item-row">
     <!-- 显示模式 -->
     <div v-if="!isEditing" class="item-info">
       <strong>{{ props.item.title }}</strong>
@@ -117,7 +117,7 @@ function formatDate(dateStr: string): string {
 </script>
 
 <style scoped>
-.item-list li {
+.item-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -161,11 +161,11 @@ function formatDate(dateStr: string): string {
 .item-actions .btn-detail:hover {
   background: var(--color-primary-hover);
 }
-.item-actions button:last-child {
+.btn-delete {
   background: var(--color-danger);
   color: #fff;
 }
-.item-actions button:last-child:hover {
+.item-actions .btn-delete:hover {
   background: #c0392b;
 }
 .item-info.edit-mode {

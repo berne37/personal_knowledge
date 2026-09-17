@@ -77,8 +77,8 @@
       <button @click="nextPage" :disabled="currentPage === totalPages">下一页</button>
     </div>
 
-    <!-- PDF 渲染容器 -->
-    <div class="pdf-container" ref="containerRef">
+    <!-- PDF 渲染容器：没上传时不渲染这个带边框的空 box，只显示下方占位提示 -->
+    <div v-if="pdfUrl" class="pdf-container" ref="containerRef">
       <div class="pdf-wrapper" ref="wrapperRef">
         <canvas ref="canvasRef"></canvas>
         <!-- 标注图层（透明 Canvas 覆盖在上层） -->

@@ -13,7 +13,9 @@ import PDFView from '@/views/PDFView.vue'
 // 定义路由配置，显式声明类型为 RouteRecordRaw[]
 const routes: RouteRecordRaw[] = [
   { path: '/', name: 'Knowledge', component: KnowledgeView },
-  { path: '/knowledge/:title', name: 'KnowledgeDetail', component: () => import('@/views/KnowledgeDetailView.vue') },
+  // 🔧 路由参数从 title 改成 id：标题可能重复（同名条目会跳错），id 唯一。
+  //    注意：params 里必须是字符串，传的时候要 String(id)，取的时候要 Number(...) 转回来。
+  { path: '/knowledge/:id', name: 'KnowledgeDetail', component: () => import('@/views/KnowledgeDetailView.vue') },
   { path: '/chat', name: 'Chat', component: ChatView },
   { path: '/mindmap', name: 'Mindmap', component: MindmapView },
   { path: '/pdf', name: 'PDF', component: PDFView },

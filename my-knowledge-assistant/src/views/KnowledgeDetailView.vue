@@ -14,7 +14,7 @@
       <!-- ===== 头部信息（支持编辑） ===== -->
       <div class="detail-header">
         <div class="header-top">
-          <button class="back-btn" @click="goBack">← 返回</button>
+          <button class="back-btn" @click="goBack">← 返回{{ parentTitle ? ' ' + parentTitle : '知识库' }}</button>
           <div class="header-actions">
             <template v-if="!isEditing">
               <button class="btn-edit" @click="startEdit">编辑</button>
@@ -73,18 +73,18 @@
       <div class="tab-content">
         <!-- 文本 -->
         <div v-show="activeTab === 'text'" class="tab-panel">
-          <!-- 只读模式 -->
+          <!-- 只读模式：显示「长笔记」notes，和头部的短描述 description 是两回事 -->
           <div v-if="!isEditing" class="text-content">
-            <p v-if="item.description">{{ item.description }}</p>
-            <p v-else class="empty-text">暂无描述</p>
+            <p v-if="item.notes">{{ item.notes }}</p>
+            <p v-else class="empty-text">暂无笔记内容，点「编辑」开始记录</p>
           </div>
           <!-- 编辑模式 -->
           <div v-else class="text-content edit-mode">
             <textarea
-              v-model="editDesc"
+              v-model="editNotes"
               class="edit-textarea"
               rows="6"
-              placeholder="输入知识库详细内容..."
+              placeholder="输入知识库的详细笔记 / 学习心得..."
             ></textarea>
           </div>
         </div>
@@ -159,7 +159,7 @@
                 v-for="child in item.children"
                 :key="child.id"
                 :item="child"
-                @delete="loadItem"
+                @delete="handleDeleteChild"
                 @go-detail="handleGoToChildDetail"
                 @updated="loadItem"
               />
@@ -195,7 +195,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 // 🔧 新增：PDF 中转 store，用于把知识库的 PDF 附件送到 PDF 阅读器
@@ -225,13 +225,15 @@ const activeTab = ref('text')
 // ===== 编辑模式 =====
 const isEditing = ref(false)
 const editTitle = ref('')
-const editDesc = ref('')
+const editDesc = ref('')   // 短描述（头部摘要）
+const editNotes = ref('')  // 长笔记（文本标签页）
 const editLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
 function startEdit() {
   if (!item.value) return
   editTitle.value = item.value.title
   editDesc.value = item.value.description || ''
+  editNotes.value = item.value.notes || ''
   editLevel.value = item.value.level
   isEditing.value = true
 }
@@ -245,6 +247,7 @@ async function saveEdit() {
   await store.updateItem(item.value.id!, {
     title: editTitle.value,
     description: editDesc.value,
+    notes: editNotes.value,
     level: editLevel.value,
   })
   isEditing.value = false
@@ -263,15 +266,26 @@ const childLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
 // ===== 加载数据 =====
 async function loadItem() {
-  const title = route.params.title as string
-  if (!title) {
+  // 🔧 路由参数是 id（字符串），要转成数字才能和数据库里的 id 比对
+  const id = Number(route.params.id)
+  if (!id || Number.isNaN(id)) {
     loading.value = false
     return
   }
 
   loading.value = true
   try {
-    const found = store.findItemByTitle(title)
+    // 🔧 修复：直接刷新 /knowledge/xxx 时，store 里还没有数据（没有任何页面在挂载时
+    // 调用过 loadItems），findItemById 会查不到。这里先确保数据已加载。
+    if (store.items.length === 0) {
+      await store.loadItems()
+    }
+
+    // 🔧 修复：切换到另一个条目前先退出编辑态。
+    // 否则上一个条目的标题/描述还留在编辑框里，一保存就写到新条目上了。
+    isEditing.value = false
+
+    const found = store.findItemById(id)
     item.value = found || null
   } catch (error) {
     console.error('加载知识库失败:', error)
@@ -281,12 +295,27 @@ async function loadItem() {
   }
 }
 
+// 🔧 当前条目的父条目（顶层条目为 null）。放在顶层，模板和 goBack 都能用。
+//    computed = 数据变了自动重算，不用手动刷新。
+const parentItem = computed(() => {
+  if (!item.value) return null
+  return store.findParentOfId(item.value.id!)
+})
+
+// 按钮上显示的父条目名，没有父就显示「知识库」
+const parentTitle = computed(() => parentItem.value?.title || '')
+
 function goBack() {
-  router.push({ name: 'Knowledge' })
+  // 子条目 → 回到它所属的父知识库；顶层条目 → 回列表
+  if (parentItem.value) {
+    router.push({ name: 'KnowledgeDetail', params: { id: String(parentItem.value.id) } })
+  } else {
+    router.push({ name: 'Knowledge' })
+  }
 }
 
 function handleGoToChildDetail(child: KnowledgeItem) {
-  router.push({ name: 'KnowledgeDetail', params: { title: child.title } })
+  router.push({ name: 'KnowledgeDetail', params: { id: String(child.id) } })
 }
 
 function formatDate(dateStr: string): string {
@@ -316,6 +345,19 @@ async function handleAddChild() {
   } catch (error) {
     console.error('添加子条目失败:', error)
     alert('添加失败，请重试')
+  }
+}
+
+async function handleDeleteChild(id: number) {
+  if (!confirm('确定删除这个子条目吗？')) return
+  await store.deleteItem(id)
+  await loadItem()  //删除后刷新
+
+  // 🔧 修复：如果当前页面显示的就是被删掉的条目（URL 里是它），
+  // 刷新后 item 会变成 null，页面会退化成「知识库不存在」。
+  // 这种情况直接退回列表页，比留一个空壳页面合理。
+  if (!item.value) {
+    goBack()
   }
 }
 
@@ -392,6 +434,18 @@ async function handleGenerateMindmap() {
 onMounted(() => {
   loadItem()
 })
+
+// 🔧 修复：「进入子条目」时 URL 变了、页面内容却不变的根因。
+// /knowledge/A → /knowledge/B 是同一条路由规则，Vue Router 会**复用同一个组件实例**，
+// 不会销毁重建，所以 onMounted 只会在第一次执行。没有这个 watch，
+// router.push 之后 route.params.id 变了但数据不会重新加载。
+watch(
+  () => route.params.id,
+  () => {
+    loadItem()
+    window.scrollTo({ top: 0 })  // 切换条目后回到顶部，否则停在上一页的滚动位置
+  }
+)
 </script>
 
 <style scoped>

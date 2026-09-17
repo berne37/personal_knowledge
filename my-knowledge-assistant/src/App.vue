@@ -2,33 +2,45 @@
 import type { MenuItem } from '@/types'
 import { ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
+import OnboardingGuide from '@/components/OnboardingGuide.vue'
 
 const menuList = ref<MenuItem[]>([
-  { path: '/', name: '知识库' },
-  { path: '/chat', name: 'AI对话' },
-  { path: '/mindmap', name: '思维导图' },
-  { path: '/pdf', name: 'PDF阅读' },
-  { path: '/projects', name: '项目进度' },
-  { path: '/settings', name: '设置' },
+  { path: '/', name: '知识库', tour: 'knowledge' },
+  { path: '/chat', name: 'AI对话', tour: 'chat' },
+  { path: '/mindmap', name: '思维导图', tour: 'mindmap' },
+  { path: '/pdf', name: 'PDF阅读', tour: 'pdf' },
+  { path: '/projects', name: '项目进度', tour: 'projects' },
+  { path: '/settings', name: '设置', tour: 'settings' },
 ])
+
+// 🔧 引导组件实例：侧边栏「新手引导」按钮通过它重新打开引导
+const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
 </script>
 
 <template>
   <div class="app-shell">
     <nav class="sidebar">
       <ul>
-        <li v-for="item in menuList" :key="item.path">
+        <li v-for="item in menuList" :key="item.path" :data-tour="item.tour">
           <RouterLink :to="item.path" class="nav-link">
             {{ item.name }}
           </RouterLink>
         </li>
       </ul>
+
+      <!-- 侧边栏底部：随时重看新手引导 -->
+      <div class="sidebar-footer">
+        <button class="guide-btn" @click="onboardingRef?.openWelcome()">新手引导</button>
+      </div>
     </nav>
 
     <main class="content">
       <RouterView />
     </main>
   </div>
+
+  <!-- 新手引导：欢迎卡 + 聚光灯 tour（自包含，靠 localStorage 记住是否看过） -->
+  <OnboardingGuide ref="onboardingRef" />
 </template>
 
 <style scoped>
@@ -42,6 +54,30 @@ const menuList = ref<MenuItem[]>([
   background: var(--color-bg-hover);
   border-right: 1px solid var(--color-bg-border);
   padding: var(--spacing-lg);
+  /* 🔧 改成纵向 flex，让底部的「新手引导」按钮能靠最下 */
+  display: flex;
+  flex-direction: column;
+}
+
+/* 侧边栏底部入口：重看新手引导 */
+.sidebar-footer {
+  margin-top: auto;
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-bg-border);
+}
+.guide-btn {
+  width: 100%;
+  border: 1px solid var(--color-primary);
+  background: transparent;
+  color: var(--color-primary-dark);
+  padding: 8px 0;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.guide-btn:hover {
+  background: var(--color-primary-light);
 }
 
 ul {
