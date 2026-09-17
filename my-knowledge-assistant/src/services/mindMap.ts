@@ -192,7 +192,7 @@ ${knowledgeText}`
  * 所以这里做了多层兜底：去代码块 → 去 think 块 → 括号配平截取 → 校验结构。
  * 任何一步失败都抛出「看得懂」的错误，而不是笼统的「格式不正确」。
  */
-function extractMindMapJson(raw: string): MindMapNode {
+export function extractMindMapJson(raw: string): MindMapNode {
     const text = (raw || '').trim()
 
     // 4. 完全没内容：基本是 token 预算被思考吃光了
