@@ -1,113 +1,101 @@
-# My Knowledge Assistant
+# 个人知识助手（My Knowledge Assistant）
 
-这是一个以 Vue 3 + Vite 为基础的个人知识管理助手，适合用于学习笔记整理、知识库管理、AI 问答、思维导图生成以及项目进度追踪。
+本地优先（local-first）的个人学习工作台：资料存在你自己电脑上、默认不上云，AI 默认只用你自己的知识库来回答。适合边学边整理笔记、沉淀技能、做学习项目管理。
 
-## 功能概览
+## 功能模块
 
-- 知识库管理：新增、删除、分类和维护学习内容
-- AI 对话：结合知识库内容生成上下文提示，支持流式回答
-- 思维导图：基于知识库内容生成脑图结构
-- PDF 阅读：上传并浏览 PDF 文件，支持页面切换与标注
-- 项目管理：创建项目、维护任务节点、记录进度和附件
+1. **知识库**：树形结构（条目 + 子条目），支持增删改查、搜索筛选。详情页是「阅读工作台」——短描述 + 长笔记 + 附件 + 一键生成思维导图。
+2. **AI 对话**：流式逐字回答，默认把知识库内容拼进上下文，让 AI 基于你自己的资料作答。设置页可自定义 API Key / 模型 / 接口地址。
+3. **思维导图**：基于知识库内容用 AI 生成脑图，simple-mind-map 渲染，容器自适应缩放，生成结果持久化保存。
+4. **PDF 阅读**：pdfjs-dist 渲染，带双 canvas 标注层（5 种标注工具）、缩放、抓手拖拽。从知识库详情页跳入阅读。
+5. **项目管理**：建项目、拆节点、记进度、挂附件（仅记录本地文件路径，不暴露内容）。
+6. **新手引导**：首次打开自动弹欢迎卡 + 聚光灯分步 tour，看过后记进 localStorage，侧边栏可随时重看。
 
 ## 技术栈
 
-- Vue 3
-- Vite
-- TypeScript
-- Pinia
-- Vue Router
-- pdfjs-dist
-- simple-mind-map
-- DeepSeek / OpenAI 兼容接口
+- 前端框架：Vue 3 + TypeScript + Vite
+- 状态管理：Pinia（setup 风格 store）
+- 路由：Vue Router
+- 本地存储：IndexedDB（用 `idb` 封装）
+- 关键依赖：`pdfjs-dist`（PDF 渲染）、`simple-mind-map`（脑图）
+- AI 接口：DeepSeek / OpenAI 兼容的 Chat Completions，支持流式输出
 
-## 项目结构
+## 架构设计
+
+- **local-first 原则**：业务数据存在浏览器 IndexedDB，默认不联网、不上传服务器；AI 调用走用户自己的 Key。
+- **状态层**：`src/stores/` 下多个 Pinia store（knowledge / mindmap / project / PDF），每个 store 用 setup 写法，**要 return 出去的才外部可用**。
+- **AI 配置层**：`resolveAiConfig()` 按「用户设置 > 环境变量 > 默认值」三级合并；用户设置由设置页写进 localStorage。
+- **路由**：`/knowledge/:id`（用 id 不用 title，避免同名条目跳错），组件复用时靠 `watch` 路由参数重新加载数据。
+- **设计令牌**：`tokens.css` + `global.css` 统一管理 CSS 变量（颜色 / 圆角 / 间距），组件里不写死色值。
+
+## 目录结构
 
 ```text
 my-knowledge-assistant/
 ├── src/
-│   ├── components/      # 通用组件
-│   ├── services/        # AI / PDF / 思维导图服务
-│   ├── stores/          # Pinia 状态管理
-│   ├── views/           # 页面视图
-│   ├── router/          # 路由配置
-│   ├── types/           # 类型定义
-│   ├── App.vue
+│   ├── components/      # 通用组件 + OnboardingGuide（新手引导）
+│   ├── services/        # ai.ts(对话) / aiConfig.ts(配置层) / mindMap.ts(脑图)
+│   ├── stores/          # Pinia：knowledge / mindmap / project / PDF
+│   ├── views/           # 页面：知识库/详情/AI对话/思维导图/PDF/项目/设置
+│   ├── router/          # 路由表
+│   ├── style/           # tokens.css + global.css 设计令牌
+│   ├── types/           # 类型定义（KnowledgeItem 等）
+│   ├── App.vue          # 侧边栏布局 + 引导挂载
 │   └── main.ts
-├── public/
 ├── package.json
 ├── vite.config.ts
-├── vitest.config.ts
-├── tsconfig.json
 └── README.md
 ```
 
+## 代码地图（改哪里看这里）
+
+| 想改的东西 | 去哪个文件 |
+| --- | --- |
+| 知识树、增删改查、父子条目 | `src/stores/knowledgeStore.ts` |
+| AI 对话调用、流式、模型参数 | `src/services/ai.ts` |
+| AI Key / 模型 / 地址配置 | `src/services/aiConfig.ts` + `src/views/SettingsView.vue` |
+| 思维导图生成 / 解析 | `src/services/mindMap.ts` + `src/components/MindMap.vue` |
+| PDF 渲染、标注、空态 | `src/views/PDFView.vue` + `src/stores/PDFStore.ts` |
+| 新手引导步骤 / 文案 | `src/components/OnboardingGuide.vue` + `App.vue` 侧边栏 `data-tour` |
+| 数据字段（如 notes） | `src/types/index.ts` |
+
 ## 快速开始
 
-### 1. 安装依赖
+```bash
+npm install      # 装依赖
+npm run dev      # 起开发服务器，默认 http://localhost:5173（被占用会顺延 5174）
+```
+
+其他脚本：
 
 ```bash
-npm install
+npm run build      # 生产构建（含类型检查）
+npm run preview    # 预览构建产物
+npm run test:unit  # 跑 Vitest 单元测试
+npm run type-check # 仅做 vue-tsc 类型检查
+npm run lint       # ESLint / Oxlint
+npm run format     # Prettier 格式化
 ```
 
-### 2. 配置环境变量
+## 配置 AI（两种方式，可并存）
 
-在项目根目录创建 `.env` 文件，并加入以下配置：
+- **方式一 · 设置页（推荐）**：打开左侧「设置」，直接填 API Key、模型名、接口地址，存进浏览器 localStorage，不用动环境变量。
+- **方式二 · 环境变量**：根目录建 `.env`，填 `VITE_API_BASE` / `VITE_AI_API_KEY` / `VITE_AI_MODEL` / `VITE_MINDMAP_AI_MODEL`。
 
-```env
-VITE_API_BASE=https://api.deepseek.com
-VITE_AI_API_KEY=your_api_key_here
-VITE_AI_MODEL=deepseek-v4-flash
-```
+优先级：**用户在设置页填的 > .env > 代码默认值**。
 
-说明：
-- `VITE_AI_API_KEY` 为你的 AI 接口密钥
-- `VITE_API_BASE` 可改为兼容 OpenAI API 格式的其他地址
-- `VITE_AI_MODEL` 可按需替换为可用模型名称
+## 安全说明（面试常被问）
 
-### 3. 启动开发服务器
+API Key 当前只存在本机浏览器 localStorage，仅本地使用、不上传任何服务器。后续若把项目做成 Tauri 桌面端，可把 Key 挪进系统密钥库，进一步加固。
 
-```bash
-npm run dev
-```
+## 后续规划 / 已知待补
 
-默认地址通常为：
-
-```text
-http://localhost:5173
-```
-
-## 可用脚本
-
-```bash
-npm run dev        # 本地开发
-npm run build      # 生产构建
-npm run preview    # 预览生产构建
-npm run test:unit  # 运行 Vitest 测试
-npm run lint       # 运行 ESLint / Oxlint 检查
-npm run format     # 格式化代码
-```
-
-## AI 对话配置说明
-
-项目中的 AI 接口位于 `src/services/ai.ts`，默认使用 DeepSeek 的 Chat Completions API，支持流式输出，适合聊天场景的逐段显示。
-
-在调用前，确保已经在环境变量中设置了有效的 `VITE_AI_API_KEY`，否则会收到配置错误提示。
-
-## 典型使用流程
-
-1. 在“知识库”页面添加学习主题和描述
-2. 进入“AI 对话”页面，结合知识库内容提问
-3. 在“思维导图”页面生成结构化脑图
-4. 在“PDF 阅读”页面上传学习资料并做标注
-5. 在“项目进度”页面管理学习任务和节点
-
-## 备注
-
-- 本项目适合个人学习和知识沉淀场景
-- 若你使用的是非 DeepSeek 的 API 服务，需同步调整 `VITE_API_BASE` 和模型名称
-- 若需要扩展更多功能，可以在 `src/services` 和 `src/stores` 中继续补充能力
+- 补单元测试（Vitest 已配好，目前还是零测试，是面试短板）
+- local-first 闭环：附件改为只记本地文件路径，不再把 Base64 塞进 IndexedDB
+- 出构建产物或可演示链接，别只停在本机 `dev`
+- 迁移 Tauri 桌面端（作为差异化亮点）
+- 个人学习日志单独存放、不入库（已在 .gitignore 排除）
 
 ## 许可证
 
-本项目仅用于个人学习与知识管理场景，未声明额外许可证。
+个人学习用途，未声明额外许可证。
