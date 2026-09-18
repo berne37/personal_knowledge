@@ -93,7 +93,10 @@
         <div v-show="activeTab === 'attachments'" class="tab-panel">
           <div class="attachments-panel">
             <div class="upload-area">
-              <button class="upload-btn" @click="triggerFilePicker">📎 上传附件</button>
+              <!-- 🔧 local-first：支持 FSAA 的浏览器优先用「只记句柄」方式，文件内容不进 IndexedDB -->
+              <button v-if="supportsFsaa" class="upload-btn" @click="addViaHandle">📎 添加本地文件（本地优先）</button>
+              <!-- 🔧 兼容模式：Firefox 等不支持 FSAA 时，降级为把内容转 Base64 入库 -->
+              <button class="upload-btn" @click="triggerFilePicker">📎 上传附件（兼容）</button>
               <!-- 🔧 修改：accept 加上 application/pdf，允许上传 PDF -->
               <input
                 ref="fileInput"
@@ -102,14 +105,18 @@
                 style="display: none"
                 @change="handleFileChange"
               />
-              <span class="upload-hint">支持图片（JPG、PNG、GIF、WebP）和 PDF</span>
+              <span class="upload-hint">
+                支持图片（JPG、PNG、GIF、WebP）和 PDF；
+                <template v-if="supportsFsaa">「本地优先」只记录文件位置、内容不出本机</template>
+                <template v-else>当前浏览器不支持本地优先，已用兼容模式</template>
+              </span>
             </div>
 
             <div v-if="item.attachments && item.attachments.length > 0" class="attachment-list">
               <div v-for="att in item.attachments" :key="att.id" class="attachment-item">
                 <img
                   v-if="att.type && att.type.startsWith('image/')"
-                  :src="att.data"
+                  :src="(previewUrls[att.id] || att.data) || undefined"
                   class="attachment-preview"
                 />
                 <!-- 🔧 新增：非图片（如 PDF）显示占位图标，避免布局错位 -->
@@ -213,6 +220,13 @@ const store = useKnowledgeStore()
 const item = ref<KnowledgeItem | null>(null)
 const loading = ref(true)
 
+// 🔧 local-first：浏览器是否支持 File System Access API（Chrome/Edge 支持，Firefox 不支持）。
+// 支持时走「只存文件句柄、不存内容」的本地优先模式；不支持时降级回 Base64（兼容模式）。
+const supportsFsaa = typeof (window as any).showOpenFilePicker === 'function'
+
+// 句柄附件（无 Base64）的图片预览地址，按 attachment.id 缓存；从句柄现读文件生成。
+const previewUrls = ref<Record<string, string>>({})
+
 // ===== Tab 配置 =====
 const tabs = [
   { key: 'text', label: '文本' },
@@ -287,6 +301,8 @@ async function loadItem() {
 
     const found = store.findItemById(id)
     item.value = found || null
+    // 🔧 local-first：句柄附件的图片预览需从句柄重新读文件，加载后顺手解析一遍
+    await resolvePreviews()
   } catch (error) {
     console.error('加载知识库失败:', error)
     item.value = null
@@ -381,10 +397,51 @@ async function handleFileChange(e: Event) {
   }
 }
 
-// 🔧 新增：点击「阅读」——把附件的 Base64 数据放进中转 store，再跳去 PDF 阅读器
+// 🔧 local-first：用 File System Access API 选文件，只把「文件句柄」存进 IndexedDB，
+// 不存文件内容。重开时再向用户要一次授权、从句柄读回文件。Firefox 不支持时走上面的 Base64 兼容模式。
+async function addViaHandle() {
+  if (!item.value) return
+  try {
+    const handles = await (window as any).showOpenFilePicker({
+      types: [{ description: '图片或 PDF', accept: { 'application/pdf': ['.pdf'], 'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'] } }],
+    })
+    const handle = handles[0]
+    // 句柄是结构化克隆安全的对象，可直接存进 IndexedDB
+    await store.addAttachmentByHandle(item.value.id!, handle)
+    await loadItem()
+  } catch (error: any) {
+    // 用户按了取消（AbortError）就不打扰；其他错误才提示
+    if (error?.name !== 'AbortError') {
+      console.error('添加文件失败:', error)
+      alert('添加文件失败，请重试')
+    }
+  }
+}
+
+// 🔧 local-first：句柄附件（无 Base64）的图片预览，需要从句柄现读文件生成临时 URL。
+// 图片用 URL.createObjectURL，PDF 不需要预览图（显示占位图标）。
+async function resolvePreviews() {
+  if (!item.value?.attachments) return
+  const urls: Record<string, string> = {}
+  for (const att of item.value.attachments) {
+    if (att.handle && att.type?.startsWith('image/')) {
+      try {
+        const file = await att.handle.getFile()
+        urls[att.id] = URL.createObjectURL(file)
+      } catch {
+        // 授权被拒或文件已移走：预览留空，不影响其他功能
+      }
+    }
+  }
+  previewUrls.value = urls
+}
+
+// 🔧 改动：阅读 PDF 时，有句柄就带句柄（local-first 模式，不依赖 Base64）；
+// 没有句柄（兼容模式）才退回到 Base64 数据。
 function handleReadPdf(att: Attachment) {
   const pdfStore = usePDFStore()
-  pdfStore.open(att.data, att.name)
+  // data 降级方案是可选的（本地优先模式可能没 Base64），没有就传空串
+  pdfStore.open(att.data ?? '', att.name, att.handle)
   router.push('/pdf')
 }
 

@@ -108,6 +108,32 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     await loadItems();
   }
 
+  // 用 File System Access API 添加附件（local-first 核心：只存文件句柄，不存内容）
+  // 浏览器不支持 showOpenFilePicker 时由视图层降级到 addAttachment（Base64）
+  async function addAttachmentByHandle(itemId: number, handle: FileSystemFileHandle) {
+    const db = await dbPromise
+    const item = await db.get('items', itemId)
+    if (!item) return
+
+    // 句柄本身不读内容，只在入库时取一次元信息（名字/类型/大小）
+    const file = await handle.getFile()
+    const attachment: Attachment = {
+      id: crypto.randomUUID(),
+      name: file.name,
+      type: file.type,
+      handle,
+      size: file.size,
+      dateAdded: new Date().toISOString(),
+    }
+
+    if (!item.attachments) item.attachments = []
+    item.attachments.push(attachment)
+    item.updatedAt = new Date().toISOString()
+
+    await db.put('items', item)
+    await loadItems()
+  }
+
   // 删除附件
   async function removeAttachment(itemId: number, attachmentId: string) {
     const db = await dbPromise;
@@ -279,6 +305,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     addItem,
     addChildItem,
     addAttachment,
+    addAttachmentByHandle,
     removeAttachment,
     deleteItem,
     updateItem,

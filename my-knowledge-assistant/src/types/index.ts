@@ -48,7 +48,10 @@ export interface Attachment {
     id: string; // 附件唯一标识
     name: string; // 附件名称
     type: string; // 附件类型（如 'image/png', 'application/pdf' 等）
-    data: string; // 附件数据（Base64 编码）
+    // local-first 闭环：优先用文件句柄（FSAA），只存句柄不存文件内容；
+    // 浏览器不支持 showOpenFilePicker（如 Firefox）时降级为 Base64（data 有值、handle 为 null）
+    handle?: FileSystemFileHandle | null; // 文件句柄（Chrome/Edge 可序列化进 IndexedDB，重开时授权后重读）
+    data?: string; // 附件数据（Base64 编码，降级方案使用，可选）
     size?: number; // 附件大小（字节数，可选）
     dateAdded: string; // 添加时间
 }

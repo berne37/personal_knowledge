@@ -156,20 +156,38 @@ const toolbarPosition = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
 
-onMounted(() => {
+onMounted(async () => {
   // 初始位置：右上角
   toolbarPosition.value = {
     x: window.innerWidth - 260, // 假设工具栏宽度约 240px
     y: 80,
   }
 
-  // 🔧 新增：如果是从知识库详情页点「阅读」进来的，这里会取到待打开的 PDF。
-  // consume() 取走后会清空，这样下次直接进这个页面不会又自动打开旧文件。
+  // 🔧 从知识库详情页点「阅读」进来时，这里取到待打开的 PDF。
+  // consume() 取走后会清空，下次直接进页面不会自动打开旧文件。
   const pdfStore = usePDFStore()
-  const pendingUrl = pdfStore.consume()
-  if (pendingUrl) {
-    pdfUrl.value = pendingUrl
-    loadPDF(pendingUrl)
+  const { url, handle } = pdfStore.consume()
+  if (handle) {
+    // FSAA：拿到的是文件句柄（没存内容），需请求读权限后用句柄重读文件
+    try {
+      // 🔧 当前 TS DOM 库里的 FileSystemFileHandle 类型缺 requestPermission 声明，这里按需 cast。
+      // 运行时 Chrome/Edge 一定支持（FSAA 的前提）。
+      const perm = await (handle as any).requestPermission({ mode: 'read' })
+      if (perm === 'granted') {
+        const file = await handle.getFile()
+        const objUrl = URL.createObjectURL(file)
+        pdfUrl.value = objUrl
+        loadPDF(objUrl)
+      } else {
+        // 用户拒绝授权：不自动打开，提示即可
+        alert('需要文件读取权限才能打开该 PDF，请在浏览器弹窗中允许。')
+      }
+    } catch (e) {
+      alert('打开文件失败：' + (e instanceof Error ? e.message : String(e)))
+    }
+  } else if (url) {
+    pdfUrl.value = url
+    loadPDF(url)
   }
 })
 

@@ -90,8 +90,8 @@ API Key 当前只存在本机浏览器 localStorage，仅本地使用、不上�
 
 ## 后续规划 / 已知待补
 
-- 补单元测试（Vitest 已配好，目前还是零测试，是面试短板）
-- local-first 闭环：附件改为只记本地文件路径，不再把 Base64 塞进 IndexedDB
+- 补单元测试（Vitest 已配好，已有 13 例覆盖 aiConfig / mindMap，持续补充中）
+- ~~local-first 闭环：附件改为只记本地文件路径~~ → **已落地**：用 File System Access API，Chrome/Edge 下附件只存文件句柄（handle）、不存内容；Firefox 等不支持的浏览器降级回 Base64 兼容模式
 - 出构建产物或可演示链接，别只停在本机 `dev`
 - 迁移 Tauri 桌面端（作为差异化亮点）
 - 个人学习日志单独存放、不入库（已在 .gitignore 排除）
