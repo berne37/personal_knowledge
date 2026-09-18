@@ -1,6 +1,5 @@
 import { streamChat, type ChatMessage } from "./ai";
 import { resolveAiConfig } from "./aiConfig";
-import { useKnowledgeStore } from "@/stores/knowledgeStore";
 import type { KnowledgeItem } from '@/types';
 
 //思维导图节点类型
@@ -9,52 +8,6 @@ export interface MindMapNode {
         text: string,
     }
     children?: MindMapNode[]
-}
-
-/**
- * 从知识库生成思维导图数据（模拟版 - 用于测试）
- */
-export function generateMockMindMap(): MindMapNode {
-    const store = useKnowledgeStore()
-    const items = store.items
-
-    if (items.length === 0) {
-        return {
-            data: { text: '知识库为空，请先添加技能' },
-            children: []
-        }
-    }
-
-    // 构建树：根节点 -> 按掌握程度分组
-    const root: MindMapNode = {
-        data: { text: '我的知识库' },
-        children: []
-    }
-    // 按掌握程度分组
-    const groups: Record<string, MindMapNode> = {
-        '已学会': { data: { text: '已学会' }, children: [] },
-        '学习中': { data: { text: '学习中' }, children: [] },
-        '待学习': { data: { text: '待学习' }, children: [] }
-    }
-
-    items.forEach(item => {
-        const level = item.level || '待学习'
-        const node: MindMapNode = {
-            data: { text: `${item.title}：${item.description || '无描述'}` }
-        }
-        if (groups[level]) {
-            groups[level].children!.push(node)
-        }
-    })
-
-    //将非空分组添加到根节点
-    Object.values(groups).forEach(group => {
-        if (group.children && group.children.length > 0) {
-            root.children!.push(group)
-        }
-    })
-
-    return root
 }
 
 /**

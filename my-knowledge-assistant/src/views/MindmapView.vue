@@ -7,9 +7,6 @@
         <button @click="generateFromKnowledge" :disabled="store.isLoading">
           {{ store.isLoading ? '生成中...' : '从知识库生成' }}
         </button>
-        <button @click="handleLocalGenerate" :disabled="store.isLoading">
-          加载示例数据（测试）
-        </button>
       </div>
     </div>
     
@@ -20,7 +17,7 @@
 
     <!-- 使用 store 中的 mindMapData 和 isLoading -->
     <div v-if="!store.mindMapData && !store.isLoading" class="placeholder">
-      <p>点击「从知识库生成」或「加载示例数据」来展示思维导图</p>
+      <p>点击「从知识库生成」来展示思维导图</p>
     </div>
 
     <div v-if="store.isLoading" class="loading">
@@ -44,11 +41,6 @@ import MindMap from '@/components/MindMap.vue'
 
 const store = useMindmapStore()
 const knowledgeStore = useKnowledgeStore()
-
-// 使用 store 中的方法
-function handleLocalGenerate() {
-  store.generateLocal()
-}
 
 // AI 生成（使用 store 管理状态）
 async function generateFromKnowledge() {

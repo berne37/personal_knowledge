@@ -2,7 +2,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { MindMapNode } from '@/services/mindMap'
-import { generateMockMindMap } from '@/services/mindMap'
 
 export const useMindmapStore = defineStore('mindmap', () => {
   // 存储思维导图数据
@@ -33,17 +32,6 @@ export const useMindmapStore = defineStore('mindmap', () => {
     errorMessage.value = ''
   }
 
-  // 本地生成（基于当前知识库）
-  function generateLocal() {
-    try {
-      const data = generateMockMindMap()
-      setData(data)
-      setError('')
-    } catch (e) {
-      setError((e as Error).message)
-    }
-  }
-
   return {
     mindMapData,
     isLoading,
@@ -51,7 +39,6 @@ export const useMindmapStore = defineStore('mindmap', () => {
     setData,
     setLoading,
     setError,
-    clearData,
-    generateLocal
+    clearData
   }
 })

@@ -1,16 +1,8 @@
 // 单元测试：extractMindMapJson 是思维导图的「JSON 抠取器」
 // 为什么单独测它：它是纯函数（只吃字符串、吐对象，不碰页面/IndexedDB/网络），
 // 而且历史上是 bug 重灾区（AI 回复格式五花八门），给它兜底逻辑上保险最划算。
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { extractMindMapJson } from './mindMap'
-
-// extractMindMapJson 本身不依赖 store，但 mindMap.ts 顶部 import 了 knowledgeStore，
-// 而 knowledgeStore 一加载就会 openDB 连 IndexedDB（jsdom 环境里没有 indexedDB）。
-// 单元测试只测 extractMindMapJson 这一个零件，所以把 store 这个依赖 mock 成空壳，
-// 不让它真的去连库——这就是「隔离被测单元」的标准做法。
-vi.mock('@/stores/knowledgeStore', () => ({
-  useKnowledgeStore: () => ({ items: [] }),
-}))
 
 describe('extractMindMapJson', () => {
   // ① 最理想情况：AI 老老实实返回干净 JSON
