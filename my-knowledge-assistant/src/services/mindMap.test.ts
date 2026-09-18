@@ -18,7 +18,8 @@ describe('extractMindMapJson', () => {
     const raw = '{"data":{"text":"Vue3"},"children":[{"data":{"text":"组合式 API"}}]}'
     const r = extractMindMapJson(raw)
     expect(r.data.text).toBe('Vue3')
-    expect(r.children[0].data.text).toBe('组合式 API')
+    // children 是可选字段，用可选链避免 noUncheckedIndexedAccess 报「可能为 undefined」
+    expect(r.children?.[0]?.data.text).toBe('组合式 API')
   })
 
   // ② 用 ```json 代码块包裹（deepseek 常见习惯）
