@@ -94,9 +94,10 @@
           <div class="attachments-panel">
             <div class="upload-area">
               <!-- 🔧 local-first：支持 FSAA 的浏览器优先用「只记句柄」方式，文件内容不进 IndexedDB -->
-              <button v-if="supportsFsaa" class="upload-btn" @click="addViaHandle">📎 添加本地文件（本地优先）</button>
+              <button v-if="supportsFsaa" class="upload-btn" 
+              > 添加本地文件（本地优先）</button>
               <!-- 🔧 兼容模式：Firefox 等不支持 FSAA 时，降级为把内容转 Base64 入库 -->
-              <button class="upload-btn" @click="triggerFilePicker">📎 上传附件（兼容）</button>
+              <button class="upload-btn" @click="triggerFilePicker"> 上传附件（兼容）</button>
               <!-- 🔧 修改：accept 加上 application/pdf，允许上传 PDF -->
               <input
                 ref="fileInput"
@@ -509,7 +510,8 @@ watch(
 .detail-view {
   max-width: 1100px;
   margin: 0 auto;
-  padding: var(--spacing-lg);
+  padding-top: var(--spacing-);
+  /* padding: var(--spacing-lg); */
 }
 
 .loading-state,
@@ -669,7 +671,7 @@ watch(
   display: flex;
   gap: 0;
   border-bottom: 2px solid var(--color-border);
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: var(--spacing-sm);
 }
 
 .tab-btn {
@@ -696,7 +698,7 @@ watch(
   min-height: 300px;
 }
 .tab-panel {
-  padding: var(--spacing-md) 0;
+  padding: var(--spacing-xs) 0;
 }
 
 /* ===== 文本 ===== */
