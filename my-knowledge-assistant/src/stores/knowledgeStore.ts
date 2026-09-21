@@ -25,7 +25,10 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     if (loadItemsPromise) return loadItemsPromise;
     loadItemsPromise = (async () => {
       const db = await dbPromise;
-      items.value = await db.getAll('items');
+      // chats: 先用本地 plain 变量接收数据，fillId 与回写都操作它；不要直接 put items.value，
+      //   因为 items.value 是 Vue 包过的 reactive proxy，IndexedDB 结构化克隆会抛
+      //   DataCloneError（#<Object> could not be cloned）。赋值给 items.value 之后再交给 Vue 自动包 reactive。
+      const allItems = await db.getAll('items');
 
       // 老数据的子条目没有 id，递归补一个并写回数据库
       let changed = false;
@@ -38,11 +41,13 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
           if (node.children?.length) fillId(node.children);
         }
       }
-      for (const item of items.value) fillId(item.children || [])
+      for (const item of allItems) fillId(item.children || [])
+      // chats: put 的是 plain 的 allItems（含 FileSystemFileHandle 等可被结构化克隆的原生对象），不再过 reactive
       if (changed) {
-        for (const root of items.value) await db.put('items', root);
+        for (const root of allItems) await db.put('items', root);
       }
 
+      items.value = allItems;
       items.value.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
     })().finally(() => {
       // 加载结束后清空缓存，下次刷新/重新打开仍能重新读取
