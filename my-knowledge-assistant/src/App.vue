@@ -13,7 +13,7 @@ const menuList = ref<MenuItem[]>([
   { path: '/settings', name: '设置', tour: 'settings' },
 ])
 
-// 🔧 引导组件实例：侧边栏「新手引导」按钮通过它重新打开引导
+// 引导组件实例：侧边栏「新手引导」按钮通过它重新打开引导
 const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
 </script>
 
@@ -54,7 +54,7 @@ const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
   background: var(--color-bg-hover);
   border-right: 1px solid var(--color-bg-border);
   padding: var(--spacing-lg);
-  /* 🔧 改成纵向 flex，让底部的「新手引导」按钮能靠最下 */
+  /* 改成纵向 flex，让底部的「新手引导」按钮能靠最下 */
   display: flex;
   flex-direction: column;
 }
@@ -102,7 +102,7 @@ li:hover {
   color: inherit;
 }
 
-/* 🔧 修复：侧边栏原先没有任何选中态，用户看不出自己当前在哪个页面。
+/* 修复：侧边栏原先没有任何选中态，用户看不出自己当前在哪个页面。
    Vue Router 会自动给「精确匹配当前路由」的 RouterLink 加上 .router-link-exact-active 类，
    我们只要写样式就行，不需要自己维护 activeIndex 之类的状态。
 

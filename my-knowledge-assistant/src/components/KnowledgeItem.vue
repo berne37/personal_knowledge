@@ -3,12 +3,10 @@
     <!-- 显示模式 -->
     <div v-if="!isEditing" class="item-info">
       <strong>{{ props.item.title }}</strong>
-      <!-- 修复：描述为空时由 UI 层显示占位文案，
-           不再依赖数据库里存的 '无描述' 字面量（对应 KnowledgeForm.vue 的那处修复） -->
+      <!-- 修复：描述为空时由 UI 层显示占位文案，不再依赖数据库里存的 '无描述' 字面量（对应 KnowledgeForm.vue 的那处修复） -->
       <span class="desc">{{ props.item.description || '暂无描述' }}</span>
       <span class="level" :class="props.item.level">{{ props.item.level }}</span>
-      <!-- 修复：原来直接插值 createdAt，会显示 2026-08-12T10:30:00.000Z 这种原始 ISO 串，
-           现在统一走 formatDate() 格式化 -->
+      <!-- 修复：原来直接插值 createdAt，会显示 2026-08-12T10:30:00.000Z 这种原始 ISO 串，现在统一走 formatDate() 格式化 -->
       <span class="date">{{ formatDate(props.item.createdAt) }}</span>
     </div>
 
@@ -30,7 +28,7 @@
         <button class="btn-edit" @click="startEdit">编辑</button>
         <button class="btn-delete" @click="handleDelete">删除</button>
       </template>
- <!-- 编辑模式下的按钮 -->
+      <!-- 编辑模式下的按钮 -->
       <template v-else>
         <button class="btn-save" @click="saveEdit">保存</button>
         <button class="btn-cancel" @click="cancelEdit">取消</button>
@@ -39,75 +37,62 @@
   </li>
 </template>
 
-// defineProps 声明父组件必须传入 item 属性。
-// 模板中通过 props.item 访问数据（也可以解构，但会失去响应式，不推荐）。
-// 数据流向：父组件 → 子组件（通过属性）。
-
-// defineEmits 声明子组件可向父组件发送的事件。
-// 数据流向：子组件 → 父组件（通过事件）。
-
 <script setup lang="ts">
-import type { KnowledgeItem } from '@/types';
-import { ref } from 'vue';
-import { useKnowledgeStore } from '@/stores/knowledgeStore';
+import type { KnowledgeItem } from '@/types'
+import { ref } from 'vue'
+import { useKnowledgeStore } from '@/stores/knowledgeStore'
 
-const store = useKnowledgeStore();
+const store = useKnowledgeStore()
 
-// 父传子：用 props 接收数据
 const props = defineProps<{
-  item: KnowledgeItem;
-}>();
+  item: KnowledgeItem
+}>()
 
-// 子传父：用 emit 发送删除事件和进入事件
 const emit = defineEmits<{
-  (e: 'delete', id: number): void;
-  (e: 'go-detail', item: KnowledgeItem): void;
-  (e: 'updated'): void;
-}>();
+  (e: 'delete', id: number): void
+  (e: 'go-detail', item: KnowledgeItem): void
+  (e: 'updated'): void
+}>()
 
-//新增编辑模式状态
 const isEditing = ref(false)
 const editTitle = ref('')
 const editDesc = ref('')
 const editLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
 function startEdit() {
-  editTitle.value = props.item.title;
-  editDesc.value = props.item.description || '';
-  editLevel.value = props.item.level;
-  isEditing.value = true;
+  editTitle.value = props.item.title
+  editDesc.value = props.item.description || ''
+  editLevel.value = props.item.level
+  isEditing.value = true
 }
 
 async function saveEdit() {
   if (!editTitle.value.trim()) {
-    alert('标题不能为空');
-    return;
+    alert('标题不能为空')
+    return
   }
   await store.updateItem(props.item.id!, {
     title: editTitle.value,
     description: editDesc.value,
     level: editLevel.value,
-  });
-  isEditing.value = false;
-  emit('updated');
-  emit('updated');   // 触发父组件刷新
+  })
+  isEditing.value = false
+  emit('updated')
 }
 
 function cancelEdit() {
-  isEditing.value = false;
+  isEditing.value = false
 }
 
-// 删除：向父组件发送 delete 事件
 function handleDelete() {
-  emit('delete', props.item.id!);
+  emit('delete', props.item.id!)
 }
 
-// 进入详情页：向父组件发送 go-detail 事件
 function handleGoDetail() {
-  emit('go-detail', props.item);
+  emit('go-detail', props.item)
 }
 
-// 🔧 修复：列表页原先没有日期格式化函数，才会直接把 ISO 串渲染到页面上。
+// 修复：列表页原先没有日期格式化函数，才会直接把 ISO 串渲染到页面上。
 // TODO: 详情页 KnowledgeDetailView.vue 里有一份一模一样的 formatDate，
 // 后续可以抽到 src/utils/date.ts 统一复用，避免两处各改各的。
 function formatDate(dateStr: string): string {
@@ -135,9 +120,15 @@ function formatDate(dateStr: string): string {
   font-size: var(--font-size-xs);
   color: #fff;
 }
-.level.已学会 { background: var(--color-success); }
-.level.学习中 { background: var(--color-warning); }
-.level.待学习 { background: var(--color-danger); }
+.level.已学会 {
+  background: var(--color-success);
+}
+.level.学习中 {
+  background: var(--color-warning);
+}
+.level.待学习 {
+  background: var(--color-danger);
+}
 .date {
   font-size: var(--font-size-xs);
   color: var(--color-text-placeholder);

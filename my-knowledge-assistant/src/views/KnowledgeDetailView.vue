@@ -14,7 +14,9 @@
       <!-- ===== 头部信息（只读，编辑挪到「知识」tab） ===== -->
       <div class="detail-header">
         <div class="header-top">
-          <button class="back-btn" @click="goBack">← 返回{{ parentTitle ? ' ' + parentTitle : '知识库' }}</button>
+          <button class="back-btn" @click="goBack">
+            ← 返回{{ parentTitle ? ' ' + parentTitle : '知识库' }}
+          </button>
         </div>
         <h1 class="detail-title">{{ item.title }}</h1>
         <div class="detail-meta">
@@ -39,7 +41,6 @@
 
       <!-- ===== Tab 内容面板 ===== -->
       <div class="tab-content">
-
         <!-- chat: 概览只保留学习摘要和下一步入口；标题、状态、简介已在导航上方展示，不再重复。 -->
         <div v-show="activeTab === 'overview'" class="tab-panel">
           <div class="overview-layout">
@@ -68,15 +69,25 @@
                 <div>
                   <span class="relation-label">前置知识</span>
                   <div class="ov-chips">
-                    <span v-for="id in item.prerequisites || []" :key="id" class="ov-chip">{{ knowledgeTitle(id) }}</span>
-                    <span v-if="!(item.prerequisites && item.prerequisites.length)" class="ov-empty">暂无</span>
+                    <span v-for="id in item.prerequisites || []" :key="id" class="ov-chip">{{
+                      knowledgeTitle(id)
+                    }}</span>
+                    <span v-if="!(item.prerequisites && item.prerequisites.length)" class="ov-empty"
+                      >暂无</span
+                    >
                   </div>
                 </div>
                 <div>
                   <span class="relation-label">相关知识</span>
                   <div class="ov-chips">
-                    <span v-for="id in item.relatedKnowledge || []" :key="id" class="ov-chip">{{ knowledgeTitle(id) }}</span>
-                    <span v-if="!(item.relatedKnowledge && item.relatedKnowledge.length)" class="ov-empty">暂无</span>
+                    <span v-for="id in item.relatedKnowledge || []" :key="id" class="ov-chip">{{
+                      knowledgeTitle(id)
+                    }}</span>
+                    <span
+                      v-if="!(item.relatedKnowledge && item.relatedKnowledge.length)"
+                      class="ov-empty"
+                      >暂无</span
+                    >
                   </div>
                 </div>
               </div>
@@ -142,7 +153,11 @@
                 class="kb-head-action"
                 @click="handleGenerateMindmap"
                 :disabled="isGenerating"
-              >{{ isGenerating ? '生成中...' : (item.mindmapData ? '更新思维导图' : '生成思维导图') }}</button>
+              >
+                {{
+                  isGenerating ? '生成中...' : item.mindmapData ? '更新思维导图' : '生成思维导图'
+                }}
+              </button>
             </div>
             <div class="mindmap-panel">
               <div v-if="item.mindmapData" class="mindmap-container">
@@ -169,7 +184,9 @@
             </div>
             <select v-model="prereqSelect" @change="addPrereq" class="rel-select">
               <option value="">+ 添加前置知识</option>
-              <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">{{ k.title }}</option>
+              <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">
+                {{ k.title }}
+              </option>
             </select>
           </div>
 
@@ -178,13 +195,17 @@
             <div class="rel-list">
               <span v-for="id in relatedKnowledge" :key="id" class="rel-chip">
                 {{ knowledgeTitle(id) }}
-                <button class="rel-remove" @click="removeRelation('relatedKnowledge', id)">×</button>
+                <button class="rel-remove" @click="removeRelation('relatedKnowledge', id)">
+                  ×
+                </button>
               </span>
               <span v-if="relatedKnowledge.length === 0" class="rel-empty">暂无</span>
             </div>
             <select v-model="relatedSelect" @change="addRelated" class="rel-select">
               <option value="">+ 添加相关知识</option>
-              <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">{{ k.title }}</option>
+              <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">
+                {{ k.title }}
+              </option>
             </select>
           </div>
 
@@ -193,12 +214,19 @@
             <div class="rel-list">
               <span v-for="text in relatedMaterials" :key="text" class="rel-chip">
                 {{ text }}
-                <button class="rel-remove" @click="removeRelation('relatedMaterials', text)">×</button>
+                <button class="rel-remove" @click="removeRelation('relatedMaterials', text)">
+                  ×
+                </button>
               </span>
               <span v-if="relatedMaterials.length === 0" class="rel-empty">暂无</span>
             </div>
             <div class="rel-add">
-              <input v-model="materialInput" class="rel-input" placeholder="输入资料标题 / 链接" @keyup.enter="addMaterial" />
+              <input
+                v-model="materialInput"
+                class="rel-input"
+                placeholder="输入资料标题 / 链接"
+                @keyup.enter="addMaterial"
+              />
               <button class="rel-add-btn" @click="addMaterial">添加</button>
             </div>
           </div>
@@ -214,7 +242,9 @@
             </div>
             <select v-model="projectSelect" @change="addProject" class="rel-select">
               <option value="">+ 添加相关项目</option>
-              <option v-for="p in projectStore.projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+              <option v-for="p in projectStore.projects" :key="p.id" :value="p.id">
+                {{ p.name }}
+              </option>
             </select>
           </div>
         </div>
@@ -223,12 +253,14 @@
         <div v-show="activeTab === 'materials'" class="tab-panel">
           <div class="attachments-panel">
             <div class="upload-area">
-              <!-- 🔧 local-first：支持 FSAA 的浏览器优先用「只记句柄」方式，文件内容不进 IndexedDB -->
+              <!-- local-first：支持 FSAA 的浏览器优先用「只记句柄」方式，文件内容不进 IndexedDB -->
               <!-- chats: 修复本地优先按钮漏绑定的 @click（之前没绑定，点了没反应） -->
-              <button v-if="supportsFsaa" class="upload-btn" @click="addViaHandle"> 添加本地文件（本地优先）</button>
-              <!-- 🔧 兼容模式：Firefox 等不支持 FSAA 时，降级为把内容转 Base64 入库 -->
-              <button class="upload-btn" @click="triggerFilePicker"> 上传附件（兼容）</button>
-              <!-- 🔧 修改：accept 加上 application/pdf，允许上传 PDF -->
+              <button v-if="supportsFsaa" class="upload-btn" @click="addViaHandle">
+                添加本地文件（本地优先）
+              </button>
+              <!-- 兼容模式：Firefox 等不支持 FSAA 时，降级为把内容转 Base64 入库 -->
+              <button class="upload-btn" @click="triggerFilePicker">上传附件（兼容）</button>
+              <!-- 修改：accept 加上 application/pdf，允许上传 PDF -->
               <input
                 ref="fileInput"
                 type="file"
@@ -247,21 +279,23 @@
               <div v-for="att in item.attachments" :key="att.id" class="attachment-item">
                 <img
                   v-if="att.type && att.type.startsWith('image/')"
-                  :src="(previewUrls[att.id] || att.data) || undefined"
+                  :src="previewUrls[att.id] || att.data || undefined"
                   class="attachment-preview"
                 />
-                <!-- 🔧 新增：非图片（如 PDF）显示占位图标，避免布局错位 -->
+                <!-- 新增：非图片（如 PDF）显示占位图标，避免布局错位 -->
                 <div v-else class="attachment-preview file-icon">PDF</div>
                 <div class="attachment-info">
                   <span class="attachment-name">{{ att.name }}</span>
                   <span class="attachment-date">{{ formatDate(att.dateAdded) }}</span>
                 </div>
-                <!-- 🔧 新增：PDF 附件才显示「阅读」按钮，点了跳去 PDF 阅读器 -->
+                <!-- 新增：PDF 附件才显示「阅读」按钮，点了跳去 PDF 阅读器 -->
                 <button
                   v-if="att.type === 'application/pdf'"
                   class="read-btn"
                   @click="handleReadPdf(att)"
-                >阅读</button>
+                >
+                  阅读
+                </button>
                 <button class="delete-btn" @click="handleRemoveAttachment(att.id)">×</button>
               </div>
             </div>
@@ -270,7 +304,6 @@
             </div>
           </div>
         </div>
-
       </div>
     </div>
   </div>
@@ -280,7 +313,7 @@
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
-// 🔧 新增：PDF 中转 store，用于把知识库的 PDF 附件送到 PDF 阅读器
+// 新增：PDF 中转 store，用于把知识库的 PDF 附件送到 PDF 阅读器
 import { usePDFStore } from '@/stores/PDFStore'
 // chats: 关系「相关项目」需要读项目列表
 import { useProjectStore } from '@/stores/projectStore'
@@ -298,7 +331,7 @@ const projectStore = useProjectStore()
 const item = ref<KnowledgeItem | null>(null)
 const loading = ref(true)
 
-// 🔧 local-first：浏览器是否支持 File System Access API（Chrome/Edge 支持，Firefox 不支持）。
+// local-first：浏览器是否支持 File System Access API（Chrome/Edge 支持，Firefox 不支持）。
 // 支持时走「只存文件句柄、不存内容」的本地优先模式；不支持时降级回 Base64（兼容模式）。
 const supportsFsaa = typeof (window as any).showOpenFilePicker === 'function'
 
@@ -317,8 +350,8 @@ const activeTab = ref('overview')
 // ===== 编辑模式 =====
 const isEditing = ref(false)
 const editTitle = ref('')
-const editDesc = ref('')   // 短描述（头部摘要）
-const editNotes = ref('')  // 长笔记（知识标签页）
+const editDesc = ref('') // 短描述（头部摘要）
+const editNotes = ref('') // 长笔记（知识标签页）
 const editLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
 function startEdit() {
@@ -372,10 +405,10 @@ function flattenItems(items: KnowledgeItem[]): KnowledgeItem[] {
 
 // chats: 下拉里排除自己（不能把条目关联到自己）
 const otherKnowledgeItems = computed(() =>
-  flattenItems(store.items).filter((k) => k.id !== item.value?.id)
+  flattenItems(store.items).filter((k) => k.id !== item.value?.id),
 )
 
-// chats: 反查标题用于展示（删条目会产生幽灵关联，v1 先留 TODO 不处理）
+// TODO: 删除条目时清理反向关联，否则会出现幽灵关联（v1 暂未处理）
 function knowledgeTitle(id: number): string {
   return store.findItemById(id)?.title ?? `未知条目(#${id})`
 }
@@ -417,11 +450,13 @@ function addMaterial() {
 }
 function removeRelation(
   kind: 'prerequisites' | 'relatedKnowledge' | 'relatedMaterials' | 'relatedProjects',
-  id: number | string
+  id: number | string,
 ) {
   if (kind === 'prerequisites') prerequisites.value = prerequisites.value.filter((x) => x !== id)
-  else if (kind === 'relatedKnowledge') relatedKnowledge.value = relatedKnowledge.value.filter((x) => x !== id)
-  else if (kind === 'relatedProjects') relatedProjects.value = relatedProjects.value.filter((x) => x !== id)
+  else if (kind === 'relatedKnowledge')
+    relatedKnowledge.value = relatedKnowledge.value.filter((x) => x !== id)
+  else if (kind === 'relatedProjects')
+    relatedProjects.value = relatedProjects.value.filter((x) => x !== id)
   else relatedMaterials.value = relatedMaterials.value.filter((x) => x !== id)
   persistRelations()
 }
@@ -439,7 +474,7 @@ async function persistRelations() {
 
 // ===== 加载数据 =====
 async function loadItem() {
-  // 🔧 路由参数是 id（字符串），要转成数字才能和数据库里的 id 比对
+  // 路由参数是 id（字符串），要转成数字才能和数据库里的 id 比对
   const id = Number(route.params.id)
   if (!id || Number.isNaN(id)) {
     loading.value = false
@@ -463,7 +498,7 @@ async function loadItem() {
     }
     item.value = found
 
-    // 🔧 修复：切换到另一个条目前先退出编辑态。
+    // 修复：切换到另一个条目前先退出编辑态。
     // 否则上一个条目的标题/描述还留在编辑框里，一保存就写到新条目上了。
     isEditing.value = false
 
@@ -487,14 +522,14 @@ async function loadItem() {
     if (projectStore.projects.length === 0) {
       await projectStore.loadProjects()
     }
-    // 🔧 local-first：句柄附件的图片预览需从句柄重新读文件
+    // local-first：句柄附件的图片预览需从句柄重新读文件
     await resolvePreviews()
   } catch (error) {
     console.warn('[loadItem] 辅助数据加载失败（不影响主内容显示）:', error)
   }
 }
 
-// 🔧 当前条目的父条目（顶层条目为 null）。放在顶层，模板和 goBack 都能用。
+// 当前条目的父条目（顶层条目为 null）。放在顶层，模板和 goBack 都能用。
 //    computed = 数据变了自动重算，不用手动刷新。
 const parentItem = computed(() => {
   if (!item.value) return null
@@ -538,13 +573,21 @@ async function handleFileChange(e: Event) {
   }
 }
 
-// 🔧 local-first：用 File System Access API 选文件，只把「文件句柄」存进 IndexedDB，
+// local-first：用 File System Access API 选文件，只把「文件句柄」存进 IndexedDB，
 // 不存文件内容。重开时再向用户要一次授权、从句柄读回文件。Firefox 不支持时走上面的 Base64 兼容模式。
 async function addViaHandle() {
   if (!item.value) return
   try {
     const handles = await (window as any).showOpenFilePicker({
-      types: [{ description: '图片或 PDF', accept: { 'application/pdf': ['.pdf'], 'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'] } }],
+      types: [
+        {
+          description: '图片或 PDF',
+          accept: {
+            'application/pdf': ['.pdf'],
+            'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+          },
+        },
+      ],
     })
     const handle = handles[0]
     // 句柄是结构化克隆安全的对象，可直接存进 IndexedDB
@@ -566,7 +609,7 @@ function revokePreviews() {
   })
 }
 
-// 🔧 local-first：句柄附件（无 Base64）的图片预览，需要从句柄现读文件生成临时 URL。
+// local-first：句柄附件（无 Base64）的图片预览，需要从句柄现读文件生成临时 URL。
 // 图片用 URL.createObjectURL，PDF 不需要预览图（显示占位图标）。
 async function resolvePreviews() {
   revokePreviews() // chats: 先释放旧的，再生成新的
@@ -588,7 +631,7 @@ async function resolvePreviews() {
   previewUrls.value = urls
 }
 
-// 🔧 改动：阅读 PDF 时，有句柄就带句柄（local-first 模式，不依赖 Base64）；
+// 改动：阅读 PDF 时，有句柄就带句柄（local-first 模式，不依赖 Base64）；
 // 没有句柄（兼容模式）才退回到 Base64 数据。
 function handleReadPdf(att: Attachment) {
   const pdfStore = usePDFStore()
@@ -649,7 +692,7 @@ onUnmounted(() => {
   revokePreviews()
 })
 
-// 🔧 修复：「进入子条目」时 URL 变了、页面内容却不变的根因。
+// 修复：「进入子条目」时 URL 变了、页面内容却不变的根因。
 // /knowledge/A → /knowledge/B 是同一条路由规则，Vue Router 会**复用同一个组件实例**，
 // 不会销毁重建，所以 onMounted 只会在第一次执行。没有这个 watch，
 // router.push 之后 route.params.id 变了但数据不会重新加载。
@@ -657,8 +700,8 @@ watch(
   () => route.params.id,
   () => {
     loadItem()
-    window.scrollTo({ top: 0 })  // 切换条目后回到顶部，否则停在上一页的滚动位置
-  }
+    window.scrollTo({ top: 0 }) // 切换条目后回到顶部，否则停在上一页的滚动位置
+  },
 )
 </script>
 
@@ -910,7 +953,9 @@ watch(
   font-size: var(--font-size-sm);
   cursor: pointer;
 }
-.overview-link:hover { text-decoration: underline; }
+.overview-link:hover {
+  text-decoration: underline;
+}
 .overview-resources {
   display: grid;
   /* chat: 子条目入口删除后，资料入口占满该摘要行。 */
@@ -929,9 +974,17 @@ watch(
   border-radius: var(--radius-md);
   cursor: pointer;
 }
-.overview-stat:hover { border-color: var(--color-primary); }
-.overview-stat strong { font-size: var(--font-size-xl); line-height: 1; }
-.overview-stat span { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.overview-stat:hover {
+  border-color: var(--color-primary);
+}
+.overview-stat strong {
+  font-size: var(--font-size-xl);
+  line-height: 1;
+}
+.overview-stat span {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
 .ov-chips {
   display: flex;
   flex-wrap: wrap;
@@ -956,13 +1009,22 @@ watch(
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--spacing-lg);
 }
-.relation-summary > div { display: flex; flex-direction: column; gap: var(--spacing-xs); }
-.relation-label { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.relation-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+.relation-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
 
 /* chat: 导航下的概览内容在窄屏改为单列，保证摘要和关联标签可完整阅读。 */
 @media (max-width: 640px) {
   .overview-resources,
-  .relation-summary { grid-template-columns: 1fr; }
+  .relation-summary {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== 知识 ===== */
@@ -1158,7 +1220,7 @@ watch(
   color: var(--color-text-placeholder);
 }
 
-/* 🔧 新增：「阅读」按钮（只有 PDF 附件才显示） */
+/* 新增：「阅读」按钮（只有 PDF 附件才显示） */
 .read-btn {
   padding: 4px 12px;
   background: var(--color-primary);
@@ -1173,7 +1235,7 @@ watch(
   background: var(--color-primary-hover);
 }
 
-/* 🔧 新增：非图片附件的占位图标 */
+/* 新增：非图片附件的占位图标 */
 .attachment-preview.file-icon {
   display: flex;
   align-items: center;

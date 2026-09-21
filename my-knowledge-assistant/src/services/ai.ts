@@ -1,4 +1,4 @@
-// 🔧 接回统一的配置读写层（aiConfig.ts）。
+// 接回统一的配置读写层（aiConfig.ts）。
 // 设置页（SettingsView）把用户填的 key / 模型 / 地址写到 localStorage 键
 // 'my-knowledge-assistant:ai-settings'（字段 apiKey / model / baseURL / mindmapModel），
 // resolveAiConfig() 负责把「用户设置 > .env > 默认值」合并后返回。
@@ -30,7 +30,7 @@ export async function streamChat(
   onChunk: (chunk: string) => void,
   onComplete?: () => void,
   onError?: (error: Error) => void,
-  model?: string
+  model?: string,
 ) {
   const config = getAIConfig()
 
@@ -44,7 +44,7 @@ export async function streamChat(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiKey}`,
+        Authorization: `Bearer ${config.apiKey}`,
       },
       body: JSON.stringify({
         model: model || config.model,
@@ -111,7 +111,7 @@ export async function simpleChat(messages: ChatMessage[]): Promise<string> {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`,
+      Authorization: `Bearer ${config.apiKey}`,
     },
     body: JSON.stringify({
       model: config.model,

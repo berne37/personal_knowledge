@@ -104,7 +104,7 @@
 <script setup lang="ts">
 // ref 用于保存普通响应式数据，shallowRef 用于保存不应被 Vue 深层代理的第三方实例。
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
-// 🔧 新增：PDF 中转 store，用来接收从知识库详情页传过来的 PDF
+// 新增：PDF 中转 store，用来接收从知识库详情页传过来的 PDF
 import { usePDFStore } from '@/stores/PDFStore'
 // pdfjsLib 负责解析 PDF，worker 用于将解析工作放到独立线程中执行。
 import * as pdfjsLib from 'pdfjs-dist'
@@ -163,14 +163,14 @@ onMounted(async () => {
     y: 80,
   }
 
-  // 🔧 从知识库详情页点「阅读」进来时，这里取到待打开的 PDF。
+  // 从知识库详情页点「阅读」进来时，这里取到待打开的 PDF。
   // consume() 取走后会清空，下次直接进页面不会自动打开旧文件。
   const pdfStore = usePDFStore()
   const { url, handle } = pdfStore.consume()
   if (handle) {
     // FSAA：拿到的是文件句柄（没存内容），需请求读权限后用句柄重读文件
     try {
-      // 🔧 当前 TS DOM 库里的 FileSystemFileHandle 类型缺 requestPermission 声明，这里按需 cast。
+      // 当前 TS DOM 库里的 FileSystemFileHandle 类型缺 requestPermission 声明，这里按需 cast。
       // 运行时 Chrome/Edge 一定支持（FSAA 的前提）。
       const perm = await (handle as any).requestPermission({ mode: 'read' })
       if (perm === 'granted') {

@@ -28,12 +28,36 @@ const featureCards = [
 
 // tour 步骤与欢迎卡一一对应，顺序按侧边栏从上到下
 const steps: TourStep[] = [
-  { target: '[data-tour="knowledge"]', title: '知识库', text: '这里是你的「资料中心」。点「新建」上传一个技能或学习资料，可加子条目做树形拆分。' },
-  { target: '[data-tour="chat"]', title: 'AI 对话', text: '向 AI 提问，回答默认只基于你的知识库（本地优先）。需要外部资料时再让它联网。' },
-  { target: '[data-tour="mindmap"]', title: '思维导图', text: '选好知识库条目后，AI 会把它梳理成一张知识结构导图，帮你看清学习逻辑。' },
-  { target: '[data-tour="pdf"]', title: 'PDF 阅读', text: '打开 PDF 后，用第二图层划重点、写笔记，所有标注都留在本地。' },
-  { target: '[data-tour="projects"]', title: '项目进度', text: '把大任务拆成节点，每个节点记进度，避免学着学着就忘了做到哪。' },
-  { target: '[data-tour="settings"]', title: '设置', text: '在这里填你自己的 API Key、模型名和接口地址——引导结束就能去配。' },
+  {
+    target: '[data-tour="knowledge"]',
+    title: '知识库',
+    text: '这里是你的「资料中心」。点「新建」上传一个技能或学习资料，可加子条目做树形拆分。',
+  },
+  {
+    target: '[data-tour="chat"]',
+    title: 'AI 对话',
+    text: '向 AI 提问，回答默认只基于你的知识库（本地优先）。需要外部资料时再让它联网。',
+  },
+  {
+    target: '[data-tour="mindmap"]',
+    title: '思维导图',
+    text: '选好知识库条目后，AI 会把它梳理成一张知识结构导图，帮你看清学习逻辑。',
+  },
+  {
+    target: '[data-tour="pdf"]',
+    title: 'PDF 阅读',
+    text: '打开 PDF 后，用第二图层划重点、写笔记，所有标注都留在本地。',
+  },
+  {
+    target: '[data-tour="projects"]',
+    title: '项目进度',
+    text: '把大任务拆成节点，每个节点记进度，避免学着学着就忘了做到哪。',
+  },
+  {
+    target: '[data-tour="settings"]',
+    title: '设置',
+    text: '在这里填你自己的 API Key、模型名和接口地址——引导结束就能去配。',
+  },
 ]
 
 const showWelcome = ref(false)
@@ -57,7 +81,7 @@ function hasSeen(): boolean {
   return localStorage.getItem(STORAGE_KEY) === '1'
 }
 function markSeen(): void {
-  // 🔧 修复：用字符串 '1' 而非布尔值。localStorage 只存字符串，存 true 会变成 "true" 也能读，
+  // 修复：用字符串 '1' 而非布尔值。localStorage 只存字符串，存 true 会变成 "true" 也能读，
   //    但统一约定成 '1' 更直观，避免后续判断里出现 === true 永远为 false 的坑
   localStorage.setItem(STORAGE_KEY, '1')
 }
@@ -182,7 +206,11 @@ defineExpose({ openWelcome })
     <div class="ob-spotlight" :style="spotlightStyle"></div>
 
     <!-- 提示气泡 -->
-    <div ref="tooltipRef" class="ob-tooltip" :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px' }">
+    <div
+      ref="tooltipRef"
+      class="ob-tooltip"
+      :style="{ top: tooltipPos.top + 'px', left: tooltipPos.left + 'px' }"
+    >
       <div class="ob-step-count">{{ currentStep + 1 }} / {{ steps.length }}</div>
       <h3 class="ob-tooltip-title">{{ steps[currentStep]?.title }}</h3>
       <p class="ob-tooltip-text">{{ steps[currentStep]?.text }}</p>
@@ -351,15 +379,30 @@ defineExpose({ openWelcome })
 
 /* ---------- 动画 ---------- */
 @keyframes ob-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes ob-pop {
-  from { opacity: 0; transform: scale(0.96); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @keyframes ob-pulse {
-  0%, 100% { border-color: var(--color-primary); }
-  50% { border-color: var(--color-primary-hover); }
+  0%,
+  100% {
+    border-color: var(--color-primary);
+  }
+  50% {
+    border-color: var(--color-primary-hover);
+  }
 }
 </style>

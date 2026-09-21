@@ -24,7 +24,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   type: 'info',
   duration: 3000,
-  canClose: true
+  canClose: true,
 })
 
 const isVisible = ref(false)
@@ -51,31 +51,36 @@ const hide = () => {
   }
 }
 
-// ✨ 核心知识点：根据类型获取对应图标
+// 核心知识点：根据类型获取对应图标
 const getIcon = () => {
   switch (props.type) {
-    case 'success': return '✓'
-    case 'error': return '✗'
-    case 'warning': return '⚠'
-    case 'info': return 'ℹ'
-    default: return 'ℹ'
+    case 'success':
+      return '✓'
+    case 'error':
+      return '✗'
+    case 'warning':
+      return '⚠'
+    case 'info':
+      return 'ℹ'
+    default:
+      return 'ℹ'
   }
 }
 
-// ✨ 核心知识点：生命周期钩子 - 组件挂载时显示
+// 核心知识点：生命周期钩子 - 组件挂载时显示
 onMounted(() => {
   show()
 })
 
-// ✨ 核心知识点：生命周期钩子 - 组件卸载时清理
+// 核心知识点：生命周期钩子 - 组件卸载时清理
 onUnmounted(() => {
   hide()
 })
 
-// ✨ 核心知识点：defineExpose 暴露方法给父组件
+// 核心知识点：defineExpose 暴露方法给父组件
 defineExpose({
   show,
-  hide
+  hide,
 })
 </script>
 

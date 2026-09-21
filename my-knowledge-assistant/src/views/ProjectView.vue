@@ -41,7 +41,10 @@
 
       <!-- 进度条 -->
       <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: store.getProjectProgress(project) + '%' }"></div>
+        <div
+          class="progress-fill"
+          :style="{ width: store.getProjectProgress(project) + '%' }"
+        ></div>
       </div>
 
       <!-- 展开详情 -->
@@ -59,40 +62,42 @@
           </div>
 
           <!-- 添加节点表单 -->
-            <div v-if="addingNodeProjectId === project.id" class="add-node-form">
-              <input v-model="newNodeTitle" placeholder="节点名称" />
-              <input v-model="newNodeProgress" type="number" min="0" max="100" placeholder="进度" />
-              <select v-model="newNodeStatus">
-                <option value="pending">待开始</option>
-                <option value="in-progress">进行中</option>
-                <option value="completed">已完成</option>
-                <option value="blocked">已阻塞</option>
-              </select>
-              <div class="form-actions">
-                <button @click="cancelAddNode">取消</button>
-                <button class="btn-primary" @click="confirmAddNode">添加</button>
-              </div>
+          <div v-if="addingNodeProjectId === project.id" class="add-node-form">
+            <input v-model="newNodeTitle" placeholder="节点名称" />
+            <input v-model="newNodeProgress" type="number" min="0" max="100" placeholder="进度" />
+            <select v-model="newNodeStatus">
+              <option value="pending">待开始</option>
+              <option value="in-progress">进行中</option>
+              <option value="completed">已完成</option>
+              <option value="blocked">已阻塞</option>
+            </select>
+            <div class="form-actions">
+              <button @click="cancelAddNode">取消</button>
+              <button class="btn-primary" @click="confirmAddNode">添加</button>
             </div>
+          </div>
 
-            <!-- 节点列表 -->
-            <div v-if="project.nodes.length === 0" class="empty-nodes">
-              <span>暂无节点，添加第一个任务吧</span>
-            </div>
-            <div v-else class="node-list">
-              <!-- ✅ 新增：透传 projectId，供节点内附件/编辑调用 store -->
-              <NodeItem
-                v-for="node in project.nodes"
-                :key="node.id"
-                :node="node"
-                :project-id="project.id"
-                @add-child="(parentId, nodeData) => store.addChildNode(project.id, parentId, nodeData)"
-                @delete="(nodeId) => deleteNode(project.id, nodeId)"
-              />
-            </div>
+          <!-- 节点列表 -->
+          <div v-if="project.nodes.length === 0" class="empty-nodes">
+            <span>暂无节点，添加第一个任务吧</span>
+          </div>
+          <div v-else class="node-list">
+            <!-- 新增：透传 projectId，供节点内附件/编辑调用 store -->
+            <NodeItem
+              v-for="node in project.nodes"
+              :key="node.id"
+              :node="node"
+              :project-id="project.id"
+              @add-child="
+                (parentId, nodeData) => store.addChildNode(project.id, parentId, nodeData)
+              "
+              @delete="(nodeId) => deleteNode(project.id, nodeId)"
+            />
           </div>
         </div>
       </div>
     </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -122,7 +127,7 @@ const addChildParentId = ref<string | null>(null)
 // ---------- 节点操作 ----------
 function openAddNode(projectId: string) {
   addingNodeProjectId.value = projectId
-  addChildParentId.value = null  // 确保重置
+  addChildParentId.value = null // 确保重置
   newNodeTitle.value = ''
   newNodeProgress.value = 0
   newNodeStatus.value = 'pending'
@@ -150,7 +155,7 @@ async function confirmAddNode() {
     children: [],
   }
 
-  // ⭐ 只调用一次
+  // 只调用一次
   if (addChildParentId.value) {
     await store.addChildNode(addingNodeProjectId.value, addChildParentId.value, nodeData)
     addChildParentId.value = null
@@ -170,7 +175,7 @@ function openAddChildNode(projectId: string, parentId: string) {
 }
 
 // ---------- 项目操作 ----------
-function toggleExpand(id:string) {
+function toggleExpand(id: string) {
   expandedId.value = expandedId.value === id ? null : id
 }
 
@@ -182,7 +187,7 @@ async function handleCreateProject() {
   await store.createProject({
     name: newProjectName.value,
     description: newProjectDesc.value,
-    deadline: newProjectDeadline.value
+    deadline: newProjectDeadline.value,
   })
   //重置表单
   newProjectName.value = ''
@@ -191,7 +196,7 @@ async function handleCreateProject() {
   showCreateModel.value = false
 }
 
-async function deleteProject(id:string) {
+async function deleteProject(id: string) {
   if (confirm('确定删除该项目吗？')) {
     await store.deleteProject(id)
   }
@@ -210,7 +215,11 @@ function toggleStatusMenu(projectId: string, nodeId: string) {
 }
 
 // 修改节点状态
-async function changeNodeStatus(projectId: string, nodeId: string, newStatus: 'pending' | 'in-progress' | 'completed' | 'blocked') {
+async function changeNodeStatus(
+  projectId: string,
+  nodeId: string,
+  newStatus: 'pending' | 'in-progress' | 'completed' | 'blocked',
+) {
   await store.updateNode(projectId, nodeId, { status: newStatus })
   statusMenuId.value = null // 关闭菜单
 }
@@ -226,7 +235,7 @@ function openFilePicker(projectId: string, nodeId: string) {
   const input = document.createElement('input')
   input.type = 'file'
   input.multiple = false
-  input.accept = 'image/*'   // 只接受图片（可改为 */* 允许所有文件）
+  input.accept = 'image/*' // 只接受图片（可改为 */* 允许所有文件）
   input.onchange = async (e) => {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
@@ -244,11 +253,11 @@ async function removeAttachment(projectId: string, nodeId: string, attachmentId:
 }
 // ---------- 辅助函数 ----------
 function getStatusLabel(status: string): string {
-  const map:Record<string,string> = {
-    'pending': '待处理',
+  const map: Record<string, string> = {
+    pending: '待处理',
     'in-progress': '进行中',
-    'completed': '已完成',
-    'blocked': '已阻塞'
+    completed: '已完成',
+    blocked: '已阻塞',
   }
   return map[status] || status
 }
@@ -367,7 +376,8 @@ onMounted(() => {
   max-width: 90%;
   box-shadow: var(--shadow-xl);
 }
-.modal input, .modal textarea {
+.modal input,
+.modal textarea {
   width: 100%;
   padding: var(--spacing-sm) var(--spacing-sm);
   margin: var(--spacing-sm) 0;
@@ -507,13 +517,14 @@ onMounted(() => {
   gap: var(--spacing-sm);
   align-items: center;
 }
-.add-node-form input, .add-node-form select {
+.add-node-form input,
+.add-node-form select {
   padding: 6px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
 }
-.add-node-form input[type="number"] {
+.add-node-form input[type='number'] {
   width: 60px;
 }
 .form-actions {
@@ -559,10 +570,18 @@ onMounted(() => {
   border-radius: var(--radius-full);
   color: #fff;
 }
-.node-status.pending { background: var(--status-pending); }
-.node-status.in-progress { background: var(--status-in-progress); }
-.node-status.completed { background: var(--status-completed); }
-.node-status.blocked { background: var(--status-blocked); }
+.node-status.pending {
+  background: var(--status-pending);
+}
+.node-status.in-progress {
+  background: var(--status-in-progress);
+}
+.node-status.completed {
+  background: var(--status-completed);
+}
+.node-status.blocked {
+  background: var(--status-blocked);
+}
 .node-progress {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
@@ -582,7 +601,7 @@ onMounted(() => {
   align-items: center;
   gap: var(--spacing-sm);
 }
-.progress-control input[type="range"] {
+.progress-control input[type='range'] {
   width: 100px;
   height: 4px;
   -webkit-appearance: none;
@@ -591,7 +610,7 @@ onMounted(() => {
   border-radius: 2px;
   outline: none;
 }
-.progress-control input[type="range"]::-webkit-slider-thumb {
+.progress-control input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
   width: 14px;
@@ -626,10 +645,18 @@ onMounted(() => {
 .node-status-dropdown:hover {
   opacity: 0.8;
 }
-.node-status-dropdown.pending { background: var(--status-pending); }
-.node-status-dropdown.in-progress { background: var(--status-in-progress); }
-.node-status-dropdown.completed { background: var(--status-completed); }
-.node-status-dropdown.blocked { background: var(--status-blocked); }
+.node-status-dropdown.pending {
+  background: var(--status-pending);
+}
+.node-status-dropdown.in-progress {
+  background: var(--status-in-progress);
+}
+.node-status-dropdown.completed {
+  background: var(--status-completed);
+}
+.node-status-dropdown.blocked {
+  background: var(--status-blocked);
+}
 
 .dropdown-arrow {
   font-size: 8px;
@@ -658,12 +685,20 @@ onMounted(() => {
 .status-option:hover {
   opacity: 0.8;
 }
-.status-option.pending { background: var(--status-pending); }
-.status-option.in-progress { background: var(--status-in-progress); }
-.status-option.completed { background: var(--status-completed); }
-.status-option.blocked { background: var(--status-blocked); }
+.status-option.pending {
+  background: var(--status-pending);
+}
+.status-option.in-progress {
+  background: var(--status-in-progress);
+}
+.status-option.completed {
+  background: var(--status-completed);
+}
+.status-option.blocked {
+  background: var(--status-blocked);
+}
 .status-option:not(:last-child) {
-  border-bottom: 1px solid rgba(255,255,255,0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .attachments {

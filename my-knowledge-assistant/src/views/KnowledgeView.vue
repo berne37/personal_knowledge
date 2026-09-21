@@ -2,18 +2,12 @@
   <div>
     <div class="header">
       <h2>知识库管理</h2>
-      <button class="btn btn-primary" @click="showAddModal = true">
-        ＋ 添加知识库
-      </button>
+      <button class="btn btn-primary" @click="showAddModal = true">＋ 添加知识库</button>
     </div>
 
     <!-- 搜索 + 筛选栏 -->
     <div class="toolbar">
-      <input
-        v-model="searchKeyword"
-        class="search-input"
-        placeholder="搜索知识库..."
-      />
+      <input v-model="searchKeyword" class="search-input" placeholder="搜索知识库..." />
       <div class="filter-group">
         <button
           v-for="opt in filterOptions"
@@ -87,9 +81,7 @@ const filteredItems = computed(() => {
 
   if (searchKeyword.value.trim()) {
     const keyword = searchKeyword.value.trim().toLowerCase()
-    items = items.filter((item) =>
-      item.title.toLowerCase().includes(keyword)
-    )
+    items = items.filter((item) => item.title.toLowerCase().includes(keyword))
   }
 
   return items
@@ -122,7 +114,7 @@ async function handleDelete(id: number) {
 
 // 跳转详情
 function goToDetail(item: KnowledgeItem) {
-  // 🔧 改用 id 跳转（原来用 title，同名条目会跳错）
+  // 改用 id 跳转（原来用 title，同名条目会跳错）
   router.push({ name: 'KnowledgeDetail', params: { id: String(item.id) } })
 }
 </script>
