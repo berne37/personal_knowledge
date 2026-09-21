@@ -134,23 +134,23 @@
           <!-- chat: 详情页不再提供子条目的创建、展示或跳转入口，避免在单一知识条目内继续分叉。 -->
 
           <!-- 思维导图 -->
+          <!-- chats: 把「更新 / 生成思维导图」按钮挪到 <h3> 标题右侧（同一行），与「笔记与编辑」的编辑按钮布局一致 -->
           <section class="kb-section">
-            <div class="kb-section-head"><h3 class="kb-title">思维导图</h3></div>
+            <div class="kb-section-head">
+              <h3 class="kb-title">思维导图</h3>
+              <button
+                class="kb-head-action"
+                @click="handleGenerateMindmap"
+                :disabled="isGenerating"
+              >{{ isGenerating ? '生成中...' : (item.mindmapData ? '更新思维导图' : '生成思维导图') }}</button>
+            </div>
             <div class="mindmap-panel">
               <div v-if="item.mindmapData" class="mindmap-container">
                 <!-- chat: 导图容器由 MindMap 组件按实际内容尺寸撑开，完整显示不裁切 -->
                 <MindMap :data="item.mindmapData" />
-                <div class="mindmap-actions">
-                  <button class="update-btn" @click="handleGenerateMindmap" :disabled="isGenerating">
-                    {{ isGenerating ? '生成中...' : '更新思维导图' }}
-                  </button>
-                </div>
               </div>
               <div v-else class="empty-mindmap">
-                <p>暂无思维导图</p>
-                <button class="generate-btn" @click="handleGenerateMindmap" :disabled="isGenerating">
-                  {{ isGenerating ? '生成中...' : '生成思维导图' }}
-                </button>
+                <p>暂无思维导图，点右上角「生成思维导图」创建</p>
               </div>
             </div>
           </section>
@@ -1223,26 +1223,19 @@ watch(
   width: max-content;
   min-width: 100%;
 }
-.mindmap-actions {
-  display: flex;
-  justify-content: flex-end;
-  padding-top: var(--spacing-sm);
-  margin-top: var(--spacing-sm);
-}
-
-.update-btn {
-  padding: var(--spacing-sm) var(--spacing-lg);
+.kb-head-action {
+  padding: var(--spacing-xs) var(--spacing-md);
   background: var(--color-primary);
   color: #fff;
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
 }
-.update-btn:hover {
+.kb-head-action:hover {
   background: var(--color-primary-hover);
 }
-.update-btn:disabled {
+.kb-head-action:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -1255,22 +1248,5 @@ watch(
   padding: var(--spacing-lg) 0;
   color: var(--color-text-placeholder);
   gap: var(--spacing-md);
-}
-
-.generate-btn {
-  padding: var(--spacing-md) var(--spacing-xl);
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--font-size-lg);
-}
-.generate-btn:hover {
-  background: var(--color-primary-hover);
-}
-.generate-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 </style>
