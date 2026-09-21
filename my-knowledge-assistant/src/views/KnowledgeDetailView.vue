@@ -11,52 +11,20 @@
 
     <!-- 主内容 -->
     <div v-else class="detail-content">
-      <!-- ===== 头部信息（支持编辑） ===== -->
+      <!-- ===== 头部信息（只读，编辑挪到「知识」tab） ===== -->
       <div class="detail-header">
         <div class="header-top">
           <button class="back-btn" @click="goBack">← 返回{{ parentTitle ? ' ' + parentTitle : '知识库' }}</button>
-          <div class="header-actions">
-            <template v-if="!isEditing">
-              <button class="btn-edit" @click="startEdit">编辑</button>
-            </template>
-            <template v-else>
-              <button class="btn-save" @click="saveEdit">保存</button>
-              <button class="btn-cancel" @click="cancelEdit">取消</button>
-            </template>
-          </div>
         </div>
-
-        <!-- 显示模式 -->
-        <template v-if="!isEditing">
-          <h1 class="detail-title">{{ item.title }}</h1>
-          <div class="detail-meta">
-            <span class="level-badge" :class="item.level">{{ item.level }}</span>
-            <span class="detail-date">创建于 {{ formatDate(item.createdAt) }}</span>
-          </div>
-          <p v-if="item.description" class="detail-desc">{{ item.description }}</p>
-        </template>
-
-        <!-- 编辑模式 -->
-        <template v-else>
-          <input v-model="editTitle" class="edit-title-input" placeholder="标题" />
-          <div class="detail-meta">
-            <select v-model="editLevel" class="edit-level-select">
-              <option value="已学会">已学会</option>
-              <option value="学习中">学习中</option>
-              <option value="待学习">待学习</option>
-            </select>
-            <span class="detail-date">创建于 {{ formatDate(item.createdAt) }}</span>
-          </div>
-          <textarea
-            v-model="editDesc"
-            class="edit-desc-textarea"
-            placeholder="描述（可选）"
-            rows="3"
-          ></textarea>
-        </template>
+        <h1 class="detail-title">{{ item.title }}</h1>
+        <div class="detail-meta">
+          <span class="level-badge" :class="item.level">{{ item.level }}</span>
+          <span class="detail-date">创建于 {{ formatDate(item.createdAt) }}</span>
+        </div>
+        <p v-if="item.description" class="detail-desc">{{ item.description }}</p>
       </div>
 
-      <!-- ===== 导航栏 ===== -->
+      <!-- ===== 导航栏（chats: 四 tab 重构为 概览 | 知识 | 关系 | 资料） ===== -->
       <div class="tab-nav">
         <button
           v-for="tab in tabs"
@@ -71,31 +39,242 @@
 
       <!-- ===== Tab 内容面板 ===== -->
       <div class="tab-content">
-        <!-- 文本 -->
-        <div v-show="activeTab === 'text'" class="tab-panel">
-          <!-- 只读模式：显示「长笔记」notes，和头部的短描述 description 是两回事 -->
-          <div v-if="!isEditing" class="text-content">
-            <p v-if="item.notes">{{ item.notes }}</p>
-            <p v-else class="empty-text">暂无笔记内容，点「编辑」开始记录</p>
-          </div>
-          <!-- 编辑模式 -->
-          <div v-else class="text-content edit-mode">
-            <textarea
-              v-model="editNotes"
-              class="edit-textarea"
-              rows="6"
-              placeholder="输入知识库的详细笔记 / 学习心得..."
-            ></textarea>
+
+        <!-- chats: 概览 tab（只读汇总） -->
+        <div v-show="activeTab === 'overview'" class="tab-panel">
+          <div class="overview-grid">
+            <section class="ov-section">
+              <h3 class="ov-title">状态</h3>
+              <span class="level-badge" :class="item.level">{{ item.level }}</span>
+            </section>
+
+            <section class="ov-section">
+              <h3 class="ov-title">简介</h3>
+              <p v-if="item.description" class="ov-text">{{ item.description }}</p>
+              <p v-else class="ov-empty">暂无简介</p>
+            </section>
+
+            <section class="ov-section">
+              <h3 class="ov-title">前置知识</h3>
+              <div class="ov-chips">
+                <span v-for="id in item.prerequisites || []" :key="id" class="ov-chip">{{ knowledgeTitle(id) }}</span>
+                <span v-if="!(item.prerequisites && item.prerequisites.length)" class="ov-empty">暂无</span>
+              </div>
+            </section>
+
+            <section class="ov-section">
+              <h3 class="ov-title">相关知识</h3>
+              <div class="ov-chips">
+                <span v-for="id in item.relatedKnowledge || []" :key="id" class="ov-chip">{{ knowledgeTitle(id) }}</span>
+                <span v-if="!(item.relatedKnowledge && item.relatedKnowledge.length)" class="ov-empty">暂无</span>
+              </div>
+            </section>
+
+            <section class="ov-section">
+              <h3 class="ov-title">资料概览</h3>
+              <p class="ov-text">附件 {{ item.attachments?.length || 0 }} 个 · 子条目 {{ item.children?.length || 0 }} 个</p>
+            </section>
+
+            <section class="ov-section">
+              <h3 class="ov-title">相关项目</h3>
+              <div class="ov-chips">
+                <span v-for="id in item.relatedProjects || []" :key="id" class="ov-chip">{{ projectTitle(id) }}</span>
+                <span v-if="!(item.relatedProjects && item.relatedProjects.length)" class="ov-empty">暂无</span>
+              </div>
+            </section>
+
+            <section class="ov-section">
+              <h3 class="ov-title">子条目</h3>
+              <div class="ov-chips">
+                <span
+                  v-for="child in item.children || []"
+                  :key="child.id"
+                  class="ov-chip link"
+                  @click="handleGoToChildDetail(child)"
+                >{{ child.title }}</span>
+                <span v-if="!(item.children && item.children.length)" class="ov-empty">暂无</span>
+              </div>
+            </section>
           </div>
         </div>
 
-        <!-- 附件 -->
-        <div v-show="activeTab === 'attachments'" class="tab-panel">
+        <!-- chats: 知识 tab（笔记 + 编辑 + 子条目 + 思维导图） -->
+        <div v-show="activeTab === 'knowledge'" class="tab-panel">
+          <section class="kb-section">
+            <div class="kb-section-head">
+              <h3 class="kb-title">笔记与编辑</h3>
+              <div class="header-actions">
+                <template v-if="!isEditing">
+                  <button class="btn-edit" @click="startEdit">编辑</button>
+                </template>
+                <template v-else>
+                  <button class="btn-save" @click="saveEdit">保存</button>
+                  <button class="btn-cancel" @click="cancelEdit">取消</button>
+                </template>
+              </div>
+            </div>
+
+            <!-- 只读：显示「长笔记」notes -->
+            <div v-if="!isEditing" class="text-content">
+              <p v-if="item.notes">{{ item.notes }}</p>
+              <p v-else class="empty-text">暂无笔记内容，点「编辑」开始记录</p>
+            </div>
+
+            <!-- 编辑：标题 / 状态 / 短描述 / 长笔记 一起改 -->
+            <div v-else class="edit-form">
+              <input v-model="editTitle" class="edit-title-input" placeholder="标题" />
+              <div class="detail-meta">
+                <select v-model="editLevel" class="edit-level-select">
+                  <option value="已学会">已学会</option>
+                  <option value="学习中">学习中</option>
+                  <option value="待学习">待学习</option>
+                </select>
+              </div>
+              <textarea
+                v-model="editDesc"
+                class="edit-desc-textarea"
+                placeholder="描述（可选）"
+                rows="3"
+              ></textarea>
+              <textarea
+                v-model="editNotes"
+                class="edit-textarea"
+                rows="6"
+                placeholder="详细笔记 / 学习心得..."
+              ></textarea>
+            </div>
+          </section>
+
+          <!-- 子条目 -->
+          <section class="kb-section">
+            <div class="kb-section-head"><h3 class="kb-title">子条目</h3></div>
+            <div class="nodes-panel">
+              <div class="nodes-header">
+                <button class="add-child-btn" @click="showAddChildForm = !showAddChildForm">
+                  {{ showAddChildForm ? '取消' : '+ 添加子条目' }}
+                </button>
+              </div>
+
+              <div v-if="showAddChildForm" class="add-child-form">
+                <input v-model="childTitle" placeholder="子条目名称" />
+                <input v-model="childDesc" placeholder="描述（可选）" />
+                <select v-model="childLevel">
+                  <option value="已学会">已学会</option>
+                  <option value="学习中">学习中</option>
+                  <option value="待学习">待学习</option>
+                </select>
+                <button class="btn-confirm" @click="handleAddChild">添加</button>
+                <button class="btn-cancel" @click="showAddChildForm = false">取消</button>
+              </div>
+
+              <div v-if="item.children && item.children.length > 0" class="children-list">
+                <KnowledgeItemComponent
+                  v-for="child in item.children"
+                  :key="child.id"
+                  :item="child"
+                  @delete="handleDeleteChild"
+                  @go-detail="handleGoToChildDetail"
+                  @updated="loadItem"
+                />
+              </div>
+              <div v-else class="empty-children">
+                <p>暂无子条目，点击上方按钮添加</p>
+              </div>
+            </div>
+          </section>
+
+          <!-- 思维导图 -->
+          <section class="kb-section">
+            <div class="kb-section-head"><h3 class="kb-title">思维导图</h3></div>
+            <div class="mindmap-panel">
+              <div v-if="item.mindmapData" class="mindmap-container">
+                <MindMap :data="item.mindmapData" />
+                <div class="mindmap-actions">
+                  <button class="update-btn" @click="handleGenerateMindmap" :disabled="isGenerating">
+                    {{ isGenerating ? '生成中...' : '更新思维导图' }}
+                  </button>
+                </div>
+              </div>
+              <div v-else class="empty-mindmap">
+                <p>暂无思维导图</p>
+                <button class="generate-btn" @click="handleGenerateMindmap" :disabled="isGenerating">
+                  {{ isGenerating ? '生成中...' : '生成思维导图' }}
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- chats: 关系 tab（第一版手动关联，无 AI） -->
+        <div v-show="activeTab === 'relations'" class="tab-panel">
+          <div class="relation-block">
+            <h3 class="rel-title">前置知识</h3>
+            <div class="rel-list">
+              <span v-for="id in prerequisites" :key="id" class="rel-chip">
+                {{ knowledgeTitle(id) }}
+                <button class="rel-remove" @click="removeRelation('prerequisites', id)">×</button>
+              </span>
+              <span v-if="prerequisites.length === 0" class="rel-empty">暂无</span>
+            </div>
+            <select v-model="prereqSelect" @change="addPrereq" class="rel-select">
+              <option value="">+ 添加前置知识</option>
+              <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">{{ k.title }}</option>
+            </select>
+          </div>
+
+          <div class="relation-block">
+            <h3 class="rel-title">相关知识</h3>
+            <div class="rel-list">
+              <span v-for="id in relatedKnowledge" :key="id" class="rel-chip">
+                {{ knowledgeTitle(id) }}
+                <button class="rel-remove" @click="removeRelation('relatedKnowledge', id)">×</button>
+              </span>
+              <span v-if="relatedKnowledge.length === 0" class="rel-empty">暂无</span>
+            </div>
+            <select v-model="relatedSelect" @change="addRelated" class="rel-select">
+              <option value="">+ 添加相关知识</option>
+              <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">{{ k.title }}</option>
+            </select>
+          </div>
+
+          <div class="relation-block">
+            <h3 class="rel-title">相关资料</h3>
+            <div class="rel-list">
+              <span v-for="text in relatedMaterials" :key="text" class="rel-chip">
+                {{ text }}
+                <button class="rel-remove" @click="removeRelation('relatedMaterials', text)">×</button>
+              </span>
+              <span v-if="relatedMaterials.length === 0" class="rel-empty">暂无</span>
+            </div>
+            <div class="rel-add">
+              <input v-model="materialInput" class="rel-input" placeholder="输入资料标题 / 链接" @keyup.enter="addMaterial" />
+              <button class="rel-add-btn" @click="addMaterial">添加</button>
+            </div>
+          </div>
+
+          <div class="relation-block">
+            <h3 class="rel-title">相关项目</h3>
+            <div class="rel-list">
+              <span v-for="id in relatedProjects" :key="id" class="rel-chip">
+                {{ projectTitle(id) }}
+                <button class="rel-remove" @click="removeRelation('relatedProjects', id)">×</button>
+              </span>
+              <span v-if="relatedProjects.length === 0" class="rel-empty">暂无</span>
+            </div>
+            <select v-model="projectSelect" @change="addProject" class="rel-select">
+              <option value="">+ 添加相关项目</option>
+              <option v-for="p in projectStore.projects" :key="p.id" :value="p.id">{{ p.name }}</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- chats: 资料 tab（原「附件」面板整体搬来） -->
+        <div v-show="activeTab === 'materials'" class="tab-panel">
           <div class="attachments-panel">
             <div class="upload-area">
               <!-- 🔧 local-first：支持 FSAA 的浏览器优先用「只记句柄」方式，文件内容不进 IndexedDB -->
-              <button v-if="supportsFsaa" class="upload-btn" 
-              > 添加本地文件（本地优先）</button>
+              <!-- chats: 修复本地优先按钮漏绑定的 @click（之前没绑定，点了没反应） -->
+              <button v-if="supportsFsaa" class="upload-btn" @click="addViaHandle"> 添加本地文件（本地优先）</button>
               <!-- 🔧 兼容模式：Firefox 等不支持 FSAA 时，降级为把内容转 Base64 入库 -->
               <button class="upload-btn" @click="triggerFilePicker"> 上传附件（兼容）</button>
               <!-- 🔧 修改：accept 加上 application/pdf，允许上传 PDF -->
@@ -141,73 +320,19 @@
           </div>
         </div>
 
-        <!-- 子条目 -->
-        <div v-show="activeTab === 'nodes'" class="tab-panel">
-          <div class="nodes-panel">
-            <div class="nodes-header">
-              <button class="add-child-btn" @click="showAddChildForm = !showAddChildForm">
-                {{ showAddChildForm ? '取消' : '+ 添加子条目' }}
-              </button>
-            </div>
-
-            <div v-if="showAddChildForm" class="add-child-form">
-              <input v-model="childTitle" placeholder="子条目名称" />
-              <input v-model="childDesc" placeholder="描述（可选）" />
-              <select v-model="childLevel">
-                <option value="已学会">已学会</option>
-                <option value="学习中">学习中</option>
-                <option value="待学习">待学习</option>
-              </select>
-              <button class="btn-confirm" @click="handleAddChild">添加</button>
-              <button class="btn-cancel" @click="showAddChildForm = false">取消</button>
-            </div>
-
-            <div v-if="item.children && item.children.length > 0" class="children-list">
-              <KnowledgeItemComponent
-                v-for="child in item.children"
-                :key="child.id"
-                :item="child"
-                @delete="handleDeleteChild"
-                @go-detail="handleGoToChildDetail"
-                @updated="loadItem"
-              />
-            </div>
-            <div v-else class="empty-children">
-              <p>暂无子条目，点击上方按钮添加</p>
-            </div>
-          </div>
-        </div>
-
-        <!-- 思维导图 -->
-        <div v-show="activeTab === 'mindmap'" class="tab-panel">
-          <div class="mindmap-panel">
-            <div v-if="item.mindmapData" class="mindmap-container">
-              <MindMap :data="item.mindmapData" />
-              <div class="mindmap-actions">
-                <button class="update-btn" @click="handleGenerateMindmap" :disabled="isGenerating">
-                  {{ isGenerating ? '生成中...' : '更新思维导图' }}
-                </button>
-              </div>
-            </div>
-            <div v-else class="empty-mindmap">
-              <p>暂无思维导图</p>
-              <button class="generate-btn" @click="handleGenerateMindmap" :disabled="isGenerating">
-                {{ isGenerating ? '生成中...' : '生成思维导图' }}
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 // 🔧 新增：PDF 中转 store，用于把知识库的 PDF 附件送到 PDF 阅读器
 import { usePDFStore } from '@/stores/PDFStore'
+// chats: 关系「相关项目」需要读项目列表
+import { useProjectStore } from '@/stores/projectStore'
 import type { Attachment, KnowledgeItem } from '@/types'
 import KnowledgeItemComponent from '@/components/KnowledgeItem.vue'
 import MindMap from '@/components/MindMap.vue'
@@ -217,6 +342,8 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const route = useRoute()
 const router = useRouter()
 const store = useKnowledgeStore()
+// chats: 项目 store（相关项目下拉 + 反查标题）
+const projectStore = useProjectStore()
 
 const item = ref<KnowledgeItem | null>(null)
 const loading = ref(true)
@@ -228,20 +355,20 @@ const supportsFsaa = typeof (window as any).showOpenFilePicker === 'function'
 // 句柄附件（无 Base64）的图片预览地址，按 attachment.id 缓存；从句柄现读文件生成。
 const previewUrls = ref<Record<string, string>>({})
 
-// ===== Tab 配置 =====
+// chats: 四 tab 重构
 const tabs = [
-  { key: 'text', label: '文本' },
-  { key: 'attachments', label: '附件' },
-  { key: 'nodes', label: '子条目' },
-  { key: 'mindmap', label: '思维导图' },
+  { key: 'overview', label: '概览' },
+  { key: 'knowledge', label: '知识' },
+  { key: 'relations', label: '关系' },
+  { key: 'materials', label: '资料' },
 ]
-const activeTab = ref('text')
+const activeTab = ref('overview')
 
 // ===== 编辑模式 =====
 const isEditing = ref(false)
 const editTitle = ref('')
 const editDesc = ref('')   // 短描述（头部摘要）
-const editNotes = ref('')  // 长笔记（文本标签页）
+const editNotes = ref('')  // 长笔记（知识标签页）
 const editLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
 function startEdit() {
@@ -279,6 +406,93 @@ const childTitle = ref('')
 const childDesc = ref('')
 const childLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
+// ===== 关系（chats: 第一版手动关联，本地 ref 与 item 字段同步） =====
+const prerequisites = ref<number[]>([])
+const relatedKnowledge = ref<number[]>([])
+const relatedMaterials = ref<string[]>([])
+const relatedProjects = ref<string[]>([])
+const prereqSelect = ref('')
+const relatedSelect = ref('')
+const projectSelect = ref('')
+const materialInput = ref('')
+
+// chats: 把知识库树铺平成数组，供「关系」下拉选择（子条目也能被选为前置 / 相关知识）
+function flattenItems(items: KnowledgeItem[]): KnowledgeItem[] {
+  const result: KnowledgeItem[] = []
+  for (const it of items) {
+    result.push(it)
+    if (it.children?.length) result.push(...flattenItems(it.children))
+  }
+  return result
+}
+
+// chats: 下拉里排除自己（不能把条目关联到自己）
+const otherKnowledgeItems = computed(() =>
+  flattenItems(store.items).filter((k) => k.id !== item.value?.id)
+)
+
+// chats: 反查标题用于展示（删条目会产生幽灵关联，v1 先留 TODO 不处理）
+function knowledgeTitle(id: number): string {
+  return store.findItemById(id)?.title ?? `未知条目(#${id})`
+}
+function projectTitle(id: string): string {
+  return projectStore.projects.find((p) => p.id === id)?.name ?? `未知项目(${id})`
+}
+
+function addPrereq() {
+  const id = Number(prereqSelect.value)
+  if (id) {
+    if (!prerequisites.value.includes(id)) prerequisites.value.push(id)
+    prereqSelect.value = ''
+    persistRelations()
+  }
+}
+function addRelated() {
+  const id = Number(relatedSelect.value)
+  if (id) {
+    if (!relatedKnowledge.value.includes(id)) relatedKnowledge.value.push(id)
+    relatedSelect.value = ''
+    persistRelations()
+  }
+}
+function addProject() {
+  const id = projectSelect.value
+  if (id) {
+    if (!relatedProjects.value.includes(id)) relatedProjects.value.push(id)
+    projectSelect.value = ''
+    persistRelations()
+  }
+}
+function addMaterial() {
+  const text = materialInput.value.trim()
+  if (text) {
+    if (!relatedMaterials.value.includes(text)) relatedMaterials.value.push(text)
+    materialInput.value = ''
+    persistRelations()
+  }
+}
+function removeRelation(
+  kind: 'prerequisites' | 'relatedKnowledge' | 'relatedMaterials' | 'relatedProjects',
+  id: number | string
+) {
+  if (kind === 'prerequisites') prerequisites.value = prerequisites.value.filter((x) => x !== id)
+  else if (kind === 'relatedKnowledge') relatedKnowledge.value = relatedKnowledge.value.filter((x) => x !== id)
+  else if (kind === 'relatedProjects') relatedProjects.value = relatedProjects.value.filter((x) => x !== id)
+  else relatedMaterials.value = relatedMaterials.value.filter((x) => x !== id)
+  persistRelations()
+}
+// chats: 把四个关系数组一次性写回（updateItem 只合并已传字段，不用加新 API）
+async function persistRelations() {
+  if (!item.value) return
+  await store.updateItem(item.value.id!, {
+    prerequisites: prerequisites.value,
+    relatedKnowledge: relatedKnowledge.value,
+    relatedMaterials: relatedMaterials.value,
+    relatedProjects: relatedProjects.value,
+  })
+  await loadItem()
+}
+
 // ===== 加载数据 =====
 async function loadItem() {
   // 🔧 路由参数是 id（字符串），要转成数字才能和数据库里的 id 比对
@@ -295,6 +509,10 @@ async function loadItem() {
     if (store.items.length === 0) {
       await store.loadItems()
     }
+    // chats: 关系下拉需要项目列表，项目 store 没自动加载，这里补一次
+    if (projectStore.projects.length === 0) {
+      await projectStore.loadProjects()
+    }
 
     // 🔧 修复：切换到另一个条目前先退出编辑态。
     // 否则上一个条目的标题/描述还留在编辑框里，一保存就写到新条目上了。
@@ -302,6 +520,15 @@ async function loadItem() {
 
     const found = store.findItemById(id)
     item.value = found || null
+
+    // chats: 进入条目时把关系字段同步到本地 ref
+    if (found) {
+      prerequisites.value = found.prerequisites ?? []
+      relatedKnowledge.value = found.relatedKnowledge ?? []
+      relatedMaterials.value = found.relatedMaterials ?? []
+      relatedProjects.value = found.relatedProjects ?? []
+    }
+
     // 🔧 local-first：句柄附件的图片预览需从句柄重新读文件，加载后顺手解析一遍
     await resolvePreviews()
   } catch (error) {
@@ -419,10 +646,21 @@ async function addViaHandle() {
   }
 }
 
+// chats: 切换详情页 / 反复预览前先释放旧 Blob URL，避免越积越多
+function revokePreviews() {
+  Object.values(previewUrls.value).forEach((url) => {
+    if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+  })
+}
+
 // 🔧 local-first：句柄附件（无 Base64）的图片预览，需要从句柄现读文件生成临时 URL。
 // 图片用 URL.createObjectURL，PDF 不需要预览图（显示占位图标）。
 async function resolvePreviews() {
-  if (!item.value?.attachments) return
+  revokePreviews() // chats: 先释放旧的，再生成新的
+  if (!item.value?.attachments) {
+    previewUrls.value = {}
+    return
+  }
   const urls: Record<string, string> = {}
   for (const att of item.value.attachments) {
     if (att.handle && att.type?.startsWith('image/')) {
@@ -493,6 +731,11 @@ onMounted(() => {
   loadItem()
 })
 
+// chats: 组件卸载时释放 Blob URL，防止内存泄漏
+onUnmounted(() => {
+  revokePreviews()
+})
+
 // 🔧 修复：「进入子条目」时 URL 变了、页面内容却不变的根因。
 // /knowledge/A → /knowledge/B 是同一条路由规则，Vue Router 会**复用同一个组件实例**，
 // 不会销毁重建，所以 onMounted 只会在第一次执行。没有这个 watch，
@@ -510,8 +753,8 @@ watch(
 .detail-view {
   max-width: 1100px;
   margin: 0 auto;
-  padding-top: var(--spacing-);
-  /* padding: var(--spacing-lg); */
+  /* chats: 修掉原来无效的 var(--spacing-)（变量名没写完，浏览器直接忽略），改为 var(--spacing-sm) 与侧栏对齐 */
+  padding-top: var(--spacing-sm);
 }
 
 .loading-state,
@@ -666,6 +909,12 @@ watch(
   outline: none;
 }
 
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
 /* ===== Tab 导航 ===== */
 .tab-nav {
   display: flex;
@@ -701,7 +950,74 @@ watch(
   padding: var(--spacing-xs) 0;
 }
 
-/* ===== 文本 ===== */
+/* ===== 概览（chats）===== */
+.overview-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+.ov-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+.ov-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-text);
+}
+.ov-text {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+.ov-empty {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-placeholder);
+}
+.ov-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+.ov-chip {
+  padding: 4px 12px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+.ov-chip.link {
+  cursor: pointer;
+  color: var(--color-primary);
+}
+.ov-chip.link:hover {
+  background: var(--color-bg-hover);
+}
+
+/* ===== 知识 ===== */
+.kb-section {
+  margin-bottom: var(--spacing-lg);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
+}
+.kb-section:last-child {
+  border-bottom: none;
+}
+.kb-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+.kb-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  margin: 0;
+}
+
 .text-content {
   line-height: 1.8;
   color: var(--color-text);
@@ -710,7 +1026,98 @@ watch(
   color: var(--color-text-placeholder);
 }
 
-/* ===== 附件 ===== */
+/* ===== 关系（chats）===== */
+.relation-block {
+  margin-bottom: var(--spacing-lg);
+}
+.rel-title {
+  font-size: var(--font-size-md);
+  font-weight: 600;
+  margin: 0 0 var(--spacing-sm) 0;
+}
+.rel-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-sm);
+}
+.rel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+.rel-remove {
+  background: none;
+  border: none;
+  color: var(--color-text-placeholder);
+  cursor: pointer;
+  font-size: 16px;
+  padding: 0 2px;
+  line-height: 1;
+}
+.rel-remove:hover {
+  color: var(--color-danger);
+}
+.rel-empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-placeholder);
+}
+.rel-select {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  background: var(--color-bg-white);
+  max-width: 320px;
+}
+.rel-add {
+  display: flex;
+  gap: var(--spacing-sm);
+}
+.rel-input {
+  flex: 1;
+  max-width: 320px;
+  padding: var(--spacing-sm) 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-md);
+}
+.rel-add-btn {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+.rel-add-btn:hover {
+  background: var(--color-primary-hover);
+}
+
+/* ===== 文本 ===== */
+.edit-textarea {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-md);
+  font-family: inherit;
+  resize: vertical;
+  line-height: 1.8;
+  min-height: 150px;
+}
+.edit-textarea:focus {
+  border-color: var(--color-primary);
+  outline: none;
+}
+
+/* ===== 附件 / 资料 ===== */
 .attachments-panel {
   display: flex;
   flex-direction: column;
@@ -962,20 +1369,5 @@ watch(
 .generate-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-.edit-textarea {
-  width: 100%;
-  padding: var(--spacing-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-md);
-  font-family: inherit;
-  resize: vertical;
-  line-height: 1.8;
-  min-height: 150px;
-}
-.edit-textarea:focus {
-  border-color: var(--color-primary);
-  outline: none;
 }
 </style>

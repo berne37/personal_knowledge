@@ -18,7 +18,12 @@ export interface KnowledgeItem {
     updatedAt: string
     children:KnowledgeItem[]; // 子技能列表（树形结构递归类型）
     attachments: Attachment[]; // 附件列表（支持图片预览）
-    mindmapData?: MindMapNode | null; // 新增：思维导图数据，可选
+    mindmapData?: MindMapNode | null // 新增：思维导图数据，可选
+    // chats: 关系第一版（手动关联，只存目标 id，无 AI 推断）
+    prerequisites?: number[]      // 前置知识：其他 KnowledgeItem 的 id
+    relatedKnowledge?: number[]  // 相关知识：其他 KnowledgeItem 的 id
+    relatedMaterials?: string[]  // 相关资料：自由文本 / 链接（v1 不强制关联附件）
+    relatedProjects?: string[]   // 相关项目：Project 的 id（注意 Project.id 是 string）
 }
 
 //新增思维导图节点类型
