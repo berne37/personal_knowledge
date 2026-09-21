@@ -15,27 +15,40 @@ const dbPromise = openDB('knowledgeDB', 2, {
 export const useKnowledgeStore = defineStore('knowledge', () => {
   const items = ref<KnowledgeItem[]>([]);
 
+  // chats: loadItems 单飞——store 初始化(本文件末尾)与详情页 loadItem 会并发调用，
+  // 共用同一个 Promise 避免两次 db.getAll 互相覆盖 items.value 造成竞态（表现为刷新详情页查不到条目）。
+  let loadItemsPromise: Promise<void> | null = null;
+
+  // chats: 单飞版 loadItems——首个调用发起加载并缓存 Promise，后续调用直接复用，
+  // 杜绝并发时 items.value 被两次 db.getAll 覆盖。
   async function loadItems() {
-    const db = await dbPromise;
-    items.value = await db.getAll('items');
+    if (loadItemsPromise) return loadItemsPromise;
+    loadItemsPromise = (async () => {
+      const db = await dbPromise;
+      items.value = await db.getAll('items');
 
-     // 老数据的子条目没有 id，递归补一个并写回数据库
-    let changed = false;
-    function fillId(nodes: KnowledgeItem[]) {
-      for (const node of nodes) {
-        if (node.id == null) {
-          node.id = Date.now() + Math.floor(Math.random() * 1000);
-          changed = true;
+      // 老数据的子条目没有 id，递归补一个并写回数据库
+      let changed = false;
+      function fillId(nodes: KnowledgeItem[]) {
+        for (const node of nodes) {
+          if (node.id == null) {
+            node.id = Date.now() + Math.floor(Math.random() * 1000);
+            changed = true;
+          }
+          if (node.children?.length) fillId(node.children);
         }
-        if (node.children?.length) fillId(node.children);
       }
-    }
-    for (const item of items.value) fillId(item.children || [])
-      if(changed) {
-        for(const root of items.value) await db.put('items', root);
+      for (const item of items.value) fillId(item.children || [])
+      if (changed) {
+        for (const root of items.value) await db.put('items', root);
       }
 
-    items.value.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+      items.value.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+    })().finally(() => {
+      // 加载结束后清空缓存，下次刷新/重新打开仍能重新读取
+      loadItemsPromise = null;
+    });
+    return loadItemsPromise;
   }
 
   // 添加根条目

@@ -40,59 +40,45 @@
       <!-- ===== Tab 内容面板 ===== -->
       <div class="tab-content">
 
-        <!-- chats: 概览 tab（只读汇总） -->
+        <!-- chat: 概览只保留学习摘要和下一步入口；标题、状态、简介已在导航上方展示，不再重复。 -->
         <div v-show="activeTab === 'overview'" class="tab-panel">
-          <div class="overview-grid">
-            <section class="ov-section">
-              <h3 class="ov-title">状态</h3>
-              <span class="level-badge" :class="item.level">{{ item.level }}</span>
-            </section>
-
-            <section class="ov-section">
-              <h3 class="ov-title">简介</h3>
-              <p v-if="item.description" class="ov-text">{{ item.description }}</p>
-              <p v-else class="ov-empty">暂无简介</p>
-            </section>
-
-            <section class="ov-section">
-              <h3 class="ov-title">前置知识</h3>
-              <div class="ov-chips">
-                <span v-for="id in item.prerequisites || []" :key="id" class="ov-chip">{{ knowledgeTitle(id) }}</span>
-                <span v-if="!(item.prerequisites && item.prerequisites.length)" class="ov-empty">暂无</span>
+          <div class="overview-layout">
+            <section class="overview-notes">
+              <div class="overview-section-head">
+                <h3 class="ov-title">知识笔记</h3>
+                <button class="overview-link" @click="activeTab = 'knowledge'">查看全部</button>
               </div>
+              <p v-if="item.notes" class="overview-note">{{ item.notes }}</p>
+              <p v-else class="ov-empty">还没有笔记，去「知识」记录学习内容。</p>
             </section>
 
-            <section class="ov-section">
-              <h3 class="ov-title">相关知识</h3>
-              <div class="ov-chips">
-                <span v-for="id in item.relatedKnowledge || []" :key="id" class="ov-chip">{{ knowledgeTitle(id) }}</span>
-                <span v-if="!(item.relatedKnowledge && item.relatedKnowledge.length)" class="ov-empty">暂无</span>
+            <section class="overview-resources">
+              <button class="overview-stat" @click="activeTab = 'materials'">
+                <strong>{{ item.attachments?.length || 0 }}</strong>
+                <span>份资料</span>
+              </button>
+            </section>
+
+            <section class="overview-relations">
+              <div class="overview-section-head">
+                <h3 class="ov-title">知识关联</h3>
+                <button class="overview-link" @click="activeTab = 'relations'">管理关联</button>
               </div>
-            </section>
-
-            <section class="ov-section">
-              <h3 class="ov-title">资料概览</h3>
-              <p class="ov-text">附件 {{ item.attachments?.length || 0 }} 个 · 子条目 {{ item.children?.length || 0 }} 个</p>
-            </section>
-
-            <section class="ov-section">
-              <h3 class="ov-title">相关项目</h3>
-              <div class="ov-chips">
-                <span v-for="id in item.relatedProjects || []" :key="id" class="ov-chip">{{ projectTitle(id) }}</span>
-                <span v-if="!(item.relatedProjects && item.relatedProjects.length)" class="ov-empty">暂无</span>
-              </div>
-            </section>
-
-            <section class="ov-section">
-              <h3 class="ov-title">子条目</h3>
-              <div class="ov-chips">
-                <span
-                  v-for="child in item.children || []"
-                  :key="child.id"
-                  class="ov-chip link"
-                  @click="handleGoToChildDetail(child)"
-                >{{ child.title }}</span>
-                <span v-if="!(item.children && item.children.length)" class="ov-empty">暂无</span>
+              <div class="relation-summary">
+                <div>
+                  <span class="relation-label">前置知识</span>
+                  <div class="ov-chips">
+                    <span v-for="id in item.prerequisites || []" :key="id" class="ov-chip">{{ knowledgeTitle(id) }}</span>
+                    <span v-if="!(item.prerequisites && item.prerequisites.length)" class="ov-empty">暂无</span>
+                  </div>
+                </div>
+                <div>
+                  <span class="relation-label">相关知识</span>
+                  <div class="ov-chips">
+                    <span v-for="id in item.relatedKnowledge || []" :key="id" class="ov-chip">{{ knowledgeTitle(id) }}</span>
+                    <span v-if="!(item.relatedKnowledge && item.relatedKnowledge.length)" class="ov-empty">暂无</span>
+                  </div>
+                </div>
               </div>
             </section>
           </div>
@@ -145,49 +131,14 @@
             </div>
           </section>
 
-          <!-- 子条目 -->
-          <section class="kb-section">
-            <div class="kb-section-head"><h3 class="kb-title">子条目</h3></div>
-            <div class="nodes-panel">
-              <div class="nodes-header">
-                <button class="add-child-btn" @click="showAddChildForm = !showAddChildForm">
-                  {{ showAddChildForm ? '取消' : '+ 添加子条目' }}
-                </button>
-              </div>
-
-              <div v-if="showAddChildForm" class="add-child-form">
-                <input v-model="childTitle" placeholder="子条目名称" />
-                <input v-model="childDesc" placeholder="描述（可选）" />
-                <select v-model="childLevel">
-                  <option value="已学会">已学会</option>
-                  <option value="学习中">学习中</option>
-                  <option value="待学习">待学习</option>
-                </select>
-                <button class="btn-confirm" @click="handleAddChild">添加</button>
-                <button class="btn-cancel" @click="showAddChildForm = false">取消</button>
-              </div>
-
-              <div v-if="item.children && item.children.length > 0" class="children-list">
-                <KnowledgeItemComponent
-                  v-for="child in item.children"
-                  :key="child.id"
-                  :item="child"
-                  @delete="handleDeleteChild"
-                  @go-detail="handleGoToChildDetail"
-                  @updated="loadItem"
-                />
-              </div>
-              <div v-else class="empty-children">
-                <p>暂无子条目，点击上方按钮添加</p>
-              </div>
-            </div>
-          </section>
+          <!-- chat: 详情页不再提供子条目的创建、展示或跳转入口，避免在单一知识条目内继续分叉。 -->
 
           <!-- 思维导图 -->
           <section class="kb-section">
             <div class="kb-section-head"><h3 class="kb-title">思维导图</h3></div>
             <div class="mindmap-panel">
               <div v-if="item.mindmapData" class="mindmap-container">
+                <!-- chat: 导图容器由 MindMap 组件按实际内容尺寸撑开，完整显示不裁切 -->
                 <MindMap :data="item.mindmapData" />
                 <div class="mindmap-actions">
                   <button class="update-btn" @click="handleGenerateMindmap" :disabled="isGenerating">
@@ -334,7 +285,6 @@ import { usePDFStore } from '@/stores/PDFStore'
 // chats: 关系「相关项目」需要读项目列表
 import { useProjectStore } from '@/stores/projectStore'
 import type { Attachment, KnowledgeItem } from '@/types'
-import KnowledgeItemComponent from '@/components/KnowledgeItem.vue'
 import MindMap from '@/components/MindMap.vue'
 import { generateMindMapWithAI } from '@/services/mindMap'
 
@@ -399,12 +349,6 @@ async function saveEdit() {
 function cancelEdit() {
   isEditing.value = false
 }
-
-// ===== 子条目表单 =====
-const showAddChildForm = ref(false)
-const childTitle = ref('')
-const childDesc = ref('')
-const childLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
 // ===== 关系（chats: 第一版手动关联，本地 ref 与 item 字段同步） =====
 const prerequisites = ref<number[]>([])
@@ -504,38 +448,49 @@ async function loadItem() {
 
   loading.value = true
   try {
-    // 🔧 修复：直接刷新 /knowledge/xxx 时，store 里还没有数据（没有任何页面在挂载时
-    // 调用过 loadItems），findItemById 会查不到。这里先确保数据已加载。
-    if (store.items.length === 0) {
-      await store.loadItems()
+    // chats: 关键修复——始终 await 知识库数据加载完成再查找，不再用
+    // `store.items.length === 0` 提前跳过。刷新详情页是全新会话，store 初始化加载
+    // 与本次加载可能并发，跳过判断会让 findItemById 用半初始化数据而查不到，
+    // 直接显示「知识库不存在」。loadItems 已做单飞，重复 await 不会重复读库。
+    await store.loadItems()
+
+    // chats: 主数据就绪后再查，找到才赋值；找不到单独处理（不进 catch，避免和异常混淆）
+    const found = store.findItemById(id)
+    if (!found) {
+      console.warn('[loadItem] 未找到该条目', { id, itemsCount: store.items.length })
+      item.value = null
+      return
     }
-    // chats: 关系下拉需要项目列表，项目 store 没自动加载，这里补一次
-    if (projectStore.projects.length === 0) {
-      await projectStore.loadProjects()
-    }
+    item.value = found
 
     // 🔧 修复：切换到另一个条目前先退出编辑态。
     // 否则上一个条目的标题/描述还留在编辑框里，一保存就写到新条目上了。
     isEditing.value = false
 
-    const found = store.findItemById(id)
-    item.value = found || null
-
     // chats: 进入条目时把关系字段同步到本地 ref
-    if (found) {
-      prerequisites.value = found.prerequisites ?? []
-      relatedKnowledge.value = found.relatedKnowledge ?? []
-      relatedMaterials.value = found.relatedMaterials ?? []
-      relatedProjects.value = found.relatedProjects ?? []
-    }
-
-    // 🔧 local-first：句柄附件的图片预览需从句柄重新读文件，加载后顺手解析一遍
-    await resolvePreviews()
+    prerequisites.value = found.prerequisites ?? []
+    relatedKnowledge.value = found.relatedKnowledge ?? []
+    relatedMaterials.value = found.relatedMaterials ?? []
+    relatedProjects.value = found.relatedProjects ?? []
   } catch (error) {
-    console.error('加载知识库失败:', error)
+    // 只有「知识库数据本身加载失败」(如 IndexedDB 异常) 才判定为不存在
+    console.error('[loadItem] 知识库数据加载失败:', error)
     item.value = null
   } finally {
     loading.value = false
+  }
+
+  // chats: 项目列表 / 图片预览属于「辅助数据」，失败不应让主内容变「知识库不存在」。
+  // 原本这行直接 await 在 try 内，一旦 projectStore.loadProjects() 抛错（刷新时
+  // projects 为空必然走到），catch 就会把 item 清空 → 这就是刷新报「不存在」的根因。
+  try {
+    if (projectStore.projects.length === 0) {
+      await projectStore.loadProjects()
+    }
+    // 🔧 local-first：句柄附件的图片预览需从句柄重新读文件
+    await resolvePreviews()
+  } catch (error) {
+    console.warn('[loadItem] 辅助数据加载失败（不影响主内容显示）:', error)
   }
 }
 
@@ -558,51 +513,9 @@ function goBack() {
   }
 }
 
-function handleGoToChildDetail(child: KnowledgeItem) {
-  router.push({ name: 'KnowledgeDetail', params: { id: String(child.id) } })
-}
-
 function formatDate(dateStr: string): string {
   if (!dateStr) return ''
   return new Date(dateStr).toLocaleDateString('zh-CN')
-}
-
-// ===== 子条目操作 =====
-async function handleAddChild() {
-  if (!item.value) return
-  if (!childTitle.value.trim()) {
-    alert('请输入子条目名称')
-    return
-  }
-
-  try {
-    await store.addChildItem(item.value.id!, {
-      title: childTitle.value,
-      description: childDesc.value || '',
-      level: childLevel.value,
-    })
-    childTitle.value = ''
-    childDesc.value = ''
-    childLevel.value = '学习中'
-    showAddChildForm.value = false
-    await loadItem()
-  } catch (error) {
-    console.error('添加子条目失败:', error)
-    alert('添加失败，请重试')
-  }
-}
-
-async function handleDeleteChild(id: number) {
-  if (!confirm('确定删除这个子条目吗？')) return
-  await store.deleteItem(id)
-  await loadItem()  //删除后刷新
-
-  // 🔧 修复：如果当前页面显示的就是被删掉的条目（URL 里是它），
-  // 刷新后 item 会变成 null，页面会退化成「知识库不存在」。
-  // 这种情况直接退回列表页，比留一个空壳页面合理。
-  if (!item.value) {
-    goBack()
-  }
 }
 
 // ===== 附件操作 =====
@@ -950,16 +863,22 @@ watch(
   padding: var(--spacing-xs) 0;
 }
 
-/* ===== 概览（chats）===== */
-.overview-grid {
+/* chat: 概览采用「笔记优先、资料与层级次之、关系最后」的三段结构，避免重复头部信息。 */
+.overview-layout {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-lg);
 }
-.ov-section {
+.overview-notes,
+.overview-relations {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  gap: var(--spacing-sm);
+}
+.overview-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .ov-title {
   font-size: var(--font-size-md);
@@ -967,16 +886,52 @@ watch(
   margin: 0;
   color: var(--color-text);
 }
-.ov-text {
-  margin: 0;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-}
 .ov-empty {
   margin: 0;
   font-size: var(--font-size-sm);
   color: var(--color-text-placeholder);
 }
+.overview-note {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+  white-space: pre-wrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+.overview-link {
+  padding: 0;
+  color: var(--color-primary);
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.overview-link:hover { text-decoration: underline; }
+.overview-resources {
+  display: grid;
+  /* chat: 子条目入口删除后，资料入口占满该摘要行。 */
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-sm);
+}
+.overview-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: var(--spacing-md);
+  color: var(--color-text);
+  text-align: left;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.overview-stat:hover { border-color: var(--color-primary); }
+.overview-stat strong { font-size: var(--font-size-xl); line-height: 1; }
+.overview-stat span { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
 .ov-chips {
   display: flex;
   flex-wrap: wrap;
@@ -995,6 +950,19 @@ watch(
 }
 .ov-chip.link:hover {
   background: var(--color-bg-hover);
+}
+.relation-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-lg);
+}
+.relation-summary > div { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.relation-label { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+
+/* chat: 导航下的概览内容在窄屏改为单列，保证摘要和关联标签可完整阅读。 */
+@media (max-width: 640px) {
+  .overview-resources,
+  .relation-summary { grid-template-columns: 1fr; }
 }
 
 /* ===== 知识 ===== */
@@ -1017,7 +985,6 @@ watch(
   font-weight: 600;
   margin: 0;
 }
-
 .text-content {
   line-height: 1.8;
   color: var(--color-text);
@@ -1235,96 +1202,32 @@ watch(
   padding: var(--spacing-lg) 0;
 }
 
-/* ===== 子条目 ===== */
-.nodes-panel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-md);
-}
-.nodes-header {
-  display: flex;
-  justify-content: flex-start;
-}
-
-.add-child-btn {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-md);
-}
-.add-child-btn:hover {
-  background: var(--color-primary-hover);
-}
-
-.add-child-form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  background: var(--color-bg);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--color-border);
-}
-.add-child-form input,
-.add-child-form select {
-  padding: var(--spacing-sm) 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-md);
-}
-.add-child-form .btn-confirm {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-.add-child-form .btn-confirm:hover {
-  background: var(--color-primary-hover);
-}
-.add-child-form .btn-cancel {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-bg-hover);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-
-.children-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-.empty-children {
-  color: var(--color-text-placeholder);
-  text-align: center;
-  padding: var(--spacing-lg) 0;
-}
-
 /* ===== 思维导图 ===== */
+/* chat: 去掉导图内层卡片，缩小展示高度，让它作为知识内容的辅助视图。 */
 .mindmap-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
 }
+/* chat: 大导图在卡片内滚动查看；容器尺寸由内部 MindMap 按内容撑开（max-content），
+   超出 max-height 的部分纵向滚动，超出宽度的部分横向滚动。 */
 .mindmap-container {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  min-height: 400px;
-  background: var(--color-bg-white);
-  padding: var(--spacing-md);
+  overflow: auto;
+  max-height: 78vh;
+  min-height: 0;
+  background: transparent;
+  padding: 0;
+}
+/* chat: 自适应导图允许按实际宽高向外展开，完整展示所有节点。 */
+.mindmap-panel:has(.mindmap-wrapper) {
+  width: max-content;
+  min-width: 100%;
 }
 .mindmap-actions {
   display: flex;
   justify-content: flex-end;
-  padding-top: var(--spacing-md);
-  border-top: 1px solid var(--color-border);
-  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
 }
 
 .update-btn {
@@ -1349,7 +1252,7 @@ watch(
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-xl) 0;
+  padding: var(--spacing-lg) 0;
   color: var(--color-text-placeholder);
   gap: var(--spacing-md);
 }
