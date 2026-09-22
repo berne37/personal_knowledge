@@ -17,13 +17,54 @@
           <button class="back-btn" @click="goBack">
             ← 返回{{ parentTitle ? ' ' + parentTitle : '知识库' }}
           </button>
+          <!-- chats: 编辑入口从「知识」tab 挪到页头。原来它改的是标题 / 状态 / 描述，
+               而这三位显示在页头——控件在下面、被改的内容在上面，中间隔着一个 tab，
+               改的时候还得抬头看页头有没有变。现在就地编辑：点「编辑」，页头原地变成控件。 -->
+          <div class="header-actions">
+            <template v-if="!isEditing">
+              <button class="btn-outline" @click="startEdit">编辑</button>
+            </template>
+            <template v-else>
+              <button class="btn-outline btn-solid" :disabled="!editTitle.trim()" @click="saveEdit">
+                保存
+              </button>
+              <button class="btn-outline" @click="cancelEdit">取消</button>
+            </template>
+          </div>
         </div>
-        <h1 class="detail-title">{{ item.title }}</h1>
+        <h1 v-if="!isEditing" class="detail-title">{{ item.title }}</h1>
+        <input
+          v-else
+          v-model="editTitle"
+          class="detail-title inline-field"
+          placeholder="标题"
+          @keyup.enter="saveEdit"
+        />
         <div class="detail-meta">
-          <span class="level-badge" :class="item.level">{{ item.level }}</span>
+          <span v-if="!isEditing" class="level-badge" :class="item.level">{{ item.level }}</span>
+          <!-- chats: 原来这里是个原生 <select>，和常态的「圆点 + 灰字」完全两个样。
+               改成同一套写法的三个选项，选中的那个加深加底，看起来还是「那个状态徽章」。 -->
+          <div v-else class="level-picker">
+            <button
+              v-for="lv in levelOptions"
+              :key="lv"
+              class="level-badge level-opt"
+              :class="[lv, { active: editLevel === lv }]"
+              @click="editLevel = lv"
+            >
+              {{ lv }}
+            </button>
+          </div>
           <span class="detail-date">创建于 {{ formatDate(item.createdAt) }}</span>
         </div>
-        <p v-if="item.description" class="detail-desc">{{ item.description }}</p>
+        <p v-if="!isEditing && item.description" class="detail-desc">{{ item.description }}</p>
+        <textarea
+          v-else-if="isEditing"
+          v-model="editDesc"
+          class="detail-desc inline-field"
+          rows="2"
+          placeholder="一句话描述（可选）"
+        ></textarea>
       </div>
 
       <!-- ===== 导航栏（chats: 四 tab 重构为 概览 | 知识 | 关系 | 资料） ===== -->
@@ -95,52 +136,29 @@
           </div>
         </div>
 
-        <!-- chats: 知识 tab（笔记 + 编辑 + 子条目 + 思维导图） -->
+        <!-- chats: 知识 tab —— 现在只管长笔记。
+             标题 / 状态 / 描述的可编辑控件已挪回页头（它们本来就显示在那儿），
+             所以这里不再出现「同一批字段在页头和 tab 里各有一套」的重复。 -->
         <div v-show="activeTab === 'knowledge'" class="tab-panel">
           <section class="kb-section">
             <div class="kb-section-head">
-              <h3 class="kb-title">笔记与编辑</h3>
-              <div class="header-actions">
-                <template v-if="!isEditing">
-                  <!-- chats: 详情页去彩色——原来「编辑」是橙色实心、「保存」是绿色实心，现在统一走 .btn-outline 中性描边 -->
-                  <button class="btn-outline" @click="startEdit">编辑</button>
-                </template>
-                <template v-else>
-                  <button class="btn-outline" @click="saveEdit">保存</button>
-                  <button class="btn-outline" @click="cancelEdit">取消</button>
-                </template>
-              </div>
+              <h3 class="kb-title">笔记</h3>
+              <span v-if="notesLength" class="kb-count">{{ notesLength }} 字</span>
             </div>
 
-            <!-- 只读：显示「长笔记」notes -->
-            <div v-if="!isEditing" class="text-content">
-              <p v-if="item.notes">{{ item.notes }}</p>
-              <p v-else class="empty-text">暂无笔记内容，点「编辑」开始记录</p>
+            <!-- 只读：靠 white-space: pre-wrap 保住换行。
+                 原来是 <p> 默认的 white-space: normal，用户敲的回车会被折成一个空格，
+                 多段笔记存进去、再看就挤成一坨——这是真丢内容，不是样式问题。 -->
+            <div v-if="!isEditing" class="notes-view" :class="{ 'is-empty': !item.notes }">
+              {{ item.notes || '暂无笔记，点右上角「编辑」开始记录' }}
             </div>
-
-            <!-- 编辑：标题 / 状态 / 短描述 / 长笔记 一起改 -->
-            <div v-else class="edit-form">
-              <input v-model="editTitle" class="edit-title-input" placeholder="标题" />
-              <div class="detail-meta">
-                <select v-model="editLevel" class="edit-level-select">
-                  <option value="已学会">已学会</option>
-                  <option value="学习中">学习中</option>
-                  <option value="待学习">待学习</option>
-                </select>
-              </div>
-              <textarea
-                v-model="editDesc"
-                class="edit-desc-textarea"
-                placeholder="描述（可选）"
-                rows="3"
-              ></textarea>
-              <textarea
-                v-model="editNotes"
-                class="edit-textarea"
-                rows="6"
-                placeholder="详细笔记 / 学习心得..."
-              ></textarea>
-            </div>
+            <textarea
+              v-else
+              v-model="editNotes"
+              class="notes-edit"
+              rows="12"
+              placeholder="详细笔记 / 学习心得…（回车换行会保留）"
+            ></textarea>
           </section>
 
           <!-- chat: 详情页不再提供子条目的创建、展示或跳转入口，避免在单一知识条目内继续分叉。 -->
@@ -448,10 +466,9 @@ function startEdit() {
 
 async function saveEdit() {
   if (!item.value) return
-  if (!editTitle.value.trim()) {
-    alert('标题不能为空')
-    return
-  }
+  // chats: 这里原来是 alert('标题不能为空')。现在保存按钮在标题为空时就是禁用的，
+  // 快捷键路径上面也先判过了，所以这里静默返回，不再用弹窗打断。
+  if (!editTitle.value.trim()) return
   await store.updateItem(item.value.id!, {
     title: editTitle.value,
     description: editDesc.value,
@@ -465,6 +482,18 @@ async function saveEdit() {
 function cancelEdit() {
   isEditing.value = false
 }
+
+// chats: 三个状态抽成常量数组，供页头那排按钮 v-for。
+// 原来编辑态是在模板里手写三行 <option>，改一次要改两处（类型定义 + 模板）。
+// 类型直接复用 KnowledgeItem['level']，不另外起一个联合类型，避免两处定义漂移。
+const levelOptions: Array<KnowledgeItem['level']> = ['已学会', '学习中', '待学习']
+
+// chats: 笔记字数（去掉空白再数）。编辑态跟着输入框走、常态跟着已存内容走，
+// 所以还没点保存字数就先动了，不用等落库才有反馈。
+const notesLength = computed(() => {
+  const text = isEditing.value ? editNotes.value : item.value?.notes || ''
+  return text.replace(/\s/g, '').length
+})
 
 // ===== 关系（chats: 第一版手动关联，本地 ref 与 item 字段同步） =====
 // 四种关系的字段名，写一次给 toggleAdd / removeRelation 共用，避免在几处重复写联合类型
@@ -790,13 +819,28 @@ async function handleGenerateMindmap() {
   }
 }
 
+// chats: 编辑态的键盘操作——Esc 取消、Ctrl/Cmd + S 保存。
+// 因为是挂在 document 上的，必须成对卸载：否则离开详情页后监听还活着，
+// 会在其它页面把 Esc 和 Ctrl+S 一起吃掉（Ctrl+S 被拦掉后浏览器连「保存网页」都不弹了）。
+function handleEditKeydown(e: KeyboardEvent) {
+  if (!isEditing.value) return
+  if (e.key === 'Escape') {
+    cancelEdit()
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    e.preventDefault() // 不拦的话浏览器会弹出「保存网页」对话框
+    if (editTitle.value.trim()) saveEdit()
+  }
+}
+
 onMounted(() => {
   loadItem()
+  document.addEventListener('keydown', handleEditKeydown)
 })
 
 // chats: 组件卸载时释放 Blob URL，防止内存泄漏
 onUnmounted(() => {
   revokePreviews()
+  document.removeEventListener('keydown', handleEditKeydown)
 })
 
 // 修复：「进入子条目」时 URL 变了、页面内容却不变的根因。
@@ -806,6 +850,9 @@ onUnmounted(() => {
 watch(
   () => route.params.id,
   () => {
+    // chats: 换条目时先退出编辑态。isEditing 在组件实例上是共享的，
+    // 不重置的话在 A 的编辑态里点进 B，B 一进来就是编辑态、输入框里还残留 A 的内容。
+    isEditing.value = false
     loadItem()
     window.scrollTo({ top: 0 }) // 切换条目后回到顶部，否则停在上一页的滚动位置
   },
@@ -936,46 +983,83 @@ watch(
   background: var(--color-bg-hover);
   border-color: var(--color-divider);
 }
-
-.edit-title-input {
-  width: 100%;
-  font-size: var(--font-size-xl);
-  font-weight: 600;
-  padding: var(--spacing-sm) 0;
-  border: none;
-  border-bottom: 2px solid var(--color-primary);
-  outline: none;
-  background: transparent;
-  margin: 0 0 var(--spacing-sm) 0;
+/* chats: 编辑态的主操作。用户此前定的是「尽量不要有颜色的按钮」，
+   所以这里不做彩色实心，改用「深色实心 vs 描边」这个中性对比来分主次——
+   否则「保存」「取消」并排两个一模一样的描边按钮，看不出该点哪个。 */
+.btn-outline.btn-solid {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg-white);
 }
-
-.edit-level-select {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
+.btn-outline.btn-solid:hover {
+  background: var(--color-text-secondary);
+  border-color: var(--color-text-secondary);
+}
+/* 标题为空时保存按钮置灰。原来点了会 alert('标题不能为空')，用禁用代替弹窗；
+   这条要写在 .btn-solid 之后，禁用态才能把深色实心盖回白底。 */
+.btn-outline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
   background: var(--color-bg-white);
+  border-color: var(--color-border);
+  color: var(--color-text);
 }
 
-.edit-desc-textarea {
+/* chats: 就地编辑控件（标题 / 描述共用）。
+   ① 只声明 font-family: inherit，字体细节一律让外层的常态类说了算 ——
+      控件上同时挂着 .detail-title / .detail-desc，它们各自带着字号字重行高，
+      内外都写一遍就会出现两处定义、迟早漂移。
+      唯一必须显式的是 font-family：<input>/<textarea> 是表单元素，
+      浏览器默认给它们 Arial，不写就会和正文不是一个字体。
+   ② 淡底 + 透明边框，看起来是「一块能改的地方」，而不是凭空插进来一个输入框。
+   ③ 边框只在 hover / focus 出现，光标没进去就不抢视线。
+   margin 也全部不写：常态类各自带着外边距（标题的下边距、描述的上边距），
+   这里再写一份就会覆盖它们，编辑态和常态的间距反而对不上。 */
+.inline-field {
+  box-sizing: border-box;
+  display: block;
   width: 100%;
-  padding: var(--spacing-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-md);
+  padding: var(--spacing-xs) var(--spacing-sm);
   font-family: inherit;
-  resize: vertical;
-  margin-top: var(--spacing-sm);
-}
-.edit-desc-textarea:focus {
-  border-color: var(--color-primary);
+  background: var(--color-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   outline: none;
+  resize: vertical;
+  transition: all var(--transition-fast);
+}
+.inline-field:hover {
+  background: var(--color-bg-hover);
+}
+.inline-field:focus {
+  background: var(--color-bg-white);
+  border-color: var(--color-border);
 }
 
-.edit-form {
+/* chats: 状态选择器——三个选项长得和常态的 .level-badge 完全一样（同一套圆点 + 灰字，
+   圆点直接复用 .level-badge::before），选中的那个加深加底。
+   换句话说它不是「一个下拉框」，而是「那个徽章本身变得能点了」。 */
+.level-picker {
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: var(--spacing-xs);
+}
+.level-opt {
+  padding: 2px var(--spacing-sm);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  font-family: inherit;
+  color: var(--color-text-placeholder);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.level-opt:hover {
+  color: var(--color-text-secondary);
+}
+.level-opt.active {
+  color: var(--color-text);
+  background: var(--color-bg);
+  border-color: var(--color-border);
 }
 
 /* ===== Tab 导航 ===== */
@@ -1153,12 +1237,10 @@ watch(
   font-weight: 600;
   margin: 0;
 }
-.text-content {
-  line-height: 1.8;
-  color: var(--color-text);
-}
-.empty-text {
+/* chats: 笔记字数——很轻的一行元信息，别跟区块标题抢 */
+.kb-count {
   color: var(--color-text-placeholder);
+  font-size: var(--font-size-xs);
 }
 
 /* ===== 关系（chats）===== */
@@ -1374,21 +1456,47 @@ watch(
   }
 }
 
-/* ===== 文本 ===== */
-.edit-textarea {
-  width: 100%;
-  padding: var(--spacing-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-md);
-  font-family: inherit;
-  resize: vertical;
+/* ===== 笔记（chats: 知识 tab 的唯一内容）===== */
+/* 只读态和编辑态共享同一套排版（字号 / 行高 / 颜色），写在一条规则里。
+   分成两条写迟早会漂移，而这两处的排版一旦不一致，点「编辑」文字就会跳一下
+   —— textarea 不写 font-size 的话会退回浏览器默认的 13px Arial。 */
+.notes-view,
+.notes-edit {
+  font-size: inherit;
   line-height: 1.8;
-  min-height: 150px;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
 }
-.edit-textarea:focus {
-  border-color: var(--color-primary);
+/* 只读态的关键是 pre-wrap：它保住用户敲的回车。
+   原来用 <p> 默认的 white-space: normal，多段笔记会被折成一整段，
+   内容没丢，但看起来像丢了。 */
+.notes-view {
+  white-space: pre-wrap;
+}
+.notes-view.is-empty {
+  color: var(--color-text-placeholder);
+}
+/* 编辑态：多一层底色提示「这里能改」，边框只在 hover / focus 出现 */
+.notes-edit {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  padding: var(--spacing-sm);
+  font-family: inherit;
+  background: var(--color-bg);
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
   outline: none;
+  resize: vertical;
+  transition: all var(--transition-fast);
+}
+.notes-edit:hover {
+  background: var(--color-bg-hover);
+}
+.notes-edit:focus {
+  background: var(--color-bg-white);
+  border-color: var(--color-border);
 }
 
 /* ===== 附件 / 资料 ===== */
