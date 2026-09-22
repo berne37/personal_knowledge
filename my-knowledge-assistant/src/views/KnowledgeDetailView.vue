@@ -102,11 +102,12 @@
               <h3 class="kb-title">笔记与编辑</h3>
               <div class="header-actions">
                 <template v-if="!isEditing">
-                  <button class="btn-edit" @click="startEdit">编辑</button>
+                  <!-- chats: 详情页去彩色——原来「编辑」是橙色实心、「保存」是绿色实心，现在统一走 .btn-outline 中性描边 -->
+                  <button class="btn-outline" @click="startEdit">编辑</button>
                 </template>
                 <template v-else>
-                  <button class="btn-save" @click="saveEdit">保存</button>
-                  <button class="btn-cancel" @click="cancelEdit">取消</button>
+                  <button class="btn-outline" @click="saveEdit">保存</button>
+                  <button class="btn-outline" @click="cancelEdit">取消</button>
                 </template>
               </div>
             </div>
@@ -150,7 +151,7 @@
             <div class="kb-section-head">
               <h3 class="kb-title">思维导图</h3>
               <button
-                class="kb-head-action"
+                class="btn-outline kb-head-action"
                 @click="handleGenerateMindmap"
                 :disabled="isGenerating"
               >
@@ -227,7 +228,7 @@
                 placeholder="输入资料标题 / 链接"
                 @keyup.enter="addMaterial"
               />
-              <button class="rel-add-btn" @click="addMaterial">添加</button>
+              <button class="btn-outline" @click="addMaterial">添加</button>
             </div>
           </div>
 
@@ -255,11 +256,13 @@
             <div class="upload-area">
               <!-- local-first：支持 FSAA 的浏览器优先用「只记句柄」方式，文件内容不进 IndexedDB -->
               <!-- chats: 修复本地优先按钮漏绑定的 @click（之前没绑定，点了没反应） -->
-              <button v-if="supportsFsaa" class="upload-btn" @click="addViaHandle">
+              <button v-if="supportsFsaa" class="btn-outline upload-btn" @click="addViaHandle">
                 添加本地文件（本地优先）
               </button>
               <!-- 兼容模式：Firefox 等不支持 FSAA 时，降级为把内容转 Base64 入库 -->
-              <button class="upload-btn" @click="triggerFilePicker">上传附件（兼容）</button>
+              <button class="btn-outline upload-btn" @click="triggerFilePicker">
+                上传附件（兼容）
+              </button>
               <!-- 修改：accept 加上 application/pdf，允许上传 PDF -->
               <input
                 ref="fileInput"
@@ -291,7 +294,7 @@
                 <!-- 新增：PDF 附件才显示「阅读」按钮，点了跳去 PDF 阅读器 -->
                 <button
                   v-if="att.type === 'application/pdf'"
-                  class="read-btn"
+                  class="btn-outline read-btn"
                   @click="handleReadPdf(att)"
                 >
                   阅读
@@ -742,20 +745,25 @@ watch(
   gap: var(--spacing-sm);
 }
 
+/* chats: 返回是导航 chrome，不是动作，从主色改成中性次要色，把「绿色」留给页面里真正的动作链接 */
 .back-btn {
   background: none;
   border: none;
   cursor: pointer;
-  color: var(--color-primary);
-  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
   padding: 0;
+  transition: color var(--transition-fast);
 }
 .back-btn:hover {
-  text-decoration: underline;
+  color: var(--color-text);
 }
 
+/* 注意 global.css 的 `* { font-weight: normal }` 会压掉 h1 的默认加粗，
+   标题的 600 必须显式写（列表页卡片标题踩过同一个坑） */
 .detail-title {
   font-size: var(--font-size-xl);
+  font-weight: 600;
   margin: 0 0 var(--spacing-sm) 0;
 }
 
@@ -772,20 +780,31 @@ watch(
   margin: var(--spacing-sm) 0 0 0;
 }
 
+/* chats: 状态从「实心彩色药丸」改成「6px 圆点 + 中性灰文字」，
+   与知识库列表页的卡片保持一致（那边也是圆点）。颜色只留在点上，
+   顺带把「待学习」由红改灰——「还没开始学」不是错误状态。 */
 .level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--font-size-xs);
-  padding: 2px 12px;
-  border-radius: var(--radius-full);
-  color: #fff;
+  color: var(--color-text-secondary);
 }
-.level-badge.已学会 {
+.level-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.level-badge.已学会::before {
   background: var(--color-success);
 }
-.level-badge.学习中 {
+.level-badge.学习中::before {
   background: var(--color-warning);
 }
-.level-badge.待学习 {
-  background: var(--color-danger);
+.level-badge.待学习::before {
+  background: var(--status-pending);
 }
 
 .detail-date {
@@ -794,40 +813,24 @@ watch(
 }
 
 /* ===== 编辑模式 ===== */
-.btn-edit {
-  padding: var(--spacing-xs) var(--spacing-md);
-  background: var(--color-warning);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-}
-.btn-edit:hover {
-  background: #d68910;
-}
-
-.btn-save {
-  padding: var(--spacing-xs) var(--spacing-md);
-  background: var(--color-success);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-}
-.btn-save:hover {
-  background: #2ecc71;
-}
-
-.btn-cancel {
-  padding: var(--spacing-xs) var(--spacing-md);
-  background: var(--color-bg-hover);
-  color: var(--color-text);
+/* chats: 详情页去彩色——这里原来有 7 个实心色块按钮（橙色「编辑」、绿色「保存」、
+   绿色「添加」「上传附件」「生成思维导图」「阅读」），一屏里能同时出现三四种颜色，
+   抢掉了内容本身。现在统一成一个中性描边按钮：白底 + 细边 + 深色文字，
+   主次只靠文案和位置区分。要强调时把 border-color 加深一点就够，不必上色。
+   TODO: 如果其它页面也要用，可以把它提升到 style/global.css 做公共按钮类。 */
+.btn-outline {
+  padding: 6px 14px;
+  background: var(--color-bg-white);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  cursor: pointer;
+  color: var(--color-text);
   font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.btn-outline:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-divider);
 }
 
 .edit-title-input {
@@ -893,9 +896,11 @@ watch(
 .tab-btn:hover {
   color: var(--color-text);
 }
+/* chats: 选中态由主色改成正文色——tab 也是按钮，跟其它按钮一起去掉颜色；
+   选中与否靠「下划线 + 文字加深」表达，不再靠色相。 */
 .tab-btn.active {
-  color: var(--color-primary);
-  border-bottom-color: var(--color-primary);
+  color: var(--color-text);
+  border-bottom-color: var(--color-text);
   font-weight: 500;
 }
 
@@ -956,29 +961,34 @@ watch(
 .overview-link:hover {
   text-decoration: underline;
 }
+/* chats: 原来这里是个 grid 单列，那个「N 份资料」格子会横着占满整行，
+   一个数字配一大片留白。现在改成内容宽度的横排小片，跳去「资料」tab 的入口。 */
 .overview-resources {
-  display: grid;
-  /* chat: 子条目入口删除后，资料入口占满该摘要行。 */
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--spacing-sm);
 }
 .overview-stat {
-  display: flex;
+  display: inline-flex;
   align-items: baseline;
   gap: 6px;
-  padding: var(--spacing-md);
+  padding: 8px 14px;
   color: var(--color-text);
   text-align: left;
-  background: var(--color-bg-hover);
-  border: 1px solid var(--color-border-light);
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   cursor: pointer;
+  transition: all var(--transition-fast);
 }
 .overview-stat:hover {
-  border-color: var(--color-primary);
+  background: var(--color-bg-hover);
+  border-color: var(--color-divider);
 }
+/* font-weight 必须显式写：global.css 的 `* { font-weight: normal }` 会压掉 strong 的默认加粗 */
 .overview-stat strong {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-lg);
+  font-weight: 600;
   line-height: 1;
 }
 .overview-stat span {
@@ -997,13 +1007,6 @@ watch(
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
 }
-.ov-chip.link {
-  cursor: pointer;
-  color: var(--color-primary);
-}
-.ov-chip.link:hover {
-  background: var(--color-bg-hover);
-}
 .relation-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1019,9 +1022,8 @@ watch(
   font-size: var(--font-size-sm);
 }
 
-/* chat: 导航下的概览内容在窄屏改为单列，保证摘要和关联标签可完整阅读。 */
+/* chat: 导航下的概览内容在窄屏改为单列，保证关联标签可完整阅读。 */
 @media (max-width: 640px) {
-  .overview-resources,
   .relation-summary {
     grid-template-columns: 1fr;
   }
@@ -1116,17 +1118,9 @@ watch(
   border-radius: var(--radius-sm);
   font-size: var(--font-size-md);
 }
-.rel-add-btn {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-}
-.rel-add-btn:hover {
-  background: var(--color-primary-hover);
+.rel-input:focus {
+  border-color: var(--color-primary);
+  outline: none;
 }
 
 /* ===== 文本 ===== */
@@ -1163,17 +1157,11 @@ watch(
   border: 1px dashed var(--color-border);
 }
 
+/* 上传按钮比普通按钮大一档（资料 tab 的主操作，靠尺寸而不是颜色来突出） */
 .upload-btn {
-  padding: var(--spacing-sm) var(--spacing-lg);
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
+  padding: 8px 18px;
   font-size: var(--font-size-md);
-}
-.upload-btn:hover {
-  background: var(--color-primary-hover);
+  flex-shrink: 0;
 }
 
 .upload-hint {
@@ -1220,19 +1208,11 @@ watch(
   color: var(--color-text-placeholder);
 }
 
-/* 新增：「阅读」按钮（只有 PDF 附件才显示） */
+/* 「阅读」按钮（只有 PDF 附件才显示），尺寸压到最小档，不抢附件本身 */
 .read-btn {
   padding: 4px 12px;
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
   font-size: var(--font-size-xs);
   flex-shrink: 0;
-}
-.read-btn:hover {
-  background: var(--color-primary-hover);
 }
 
 /* 新增：非图片附件的占位图标 */
@@ -1285,20 +1265,8 @@ watch(
   width: max-content;
   min-width: 100%;
 }
-.kb-head-action {
-  padding: var(--spacing-xs) var(--spacing-md);
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-}
-.kb-head-action:hover {
-  background: var(--color-primary-hover);
-}
 .kb-head-action:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
