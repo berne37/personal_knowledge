@@ -174,79 +174,129 @@
 
         <!-- chats: 关系 tab（第一版手动关联，无 AI） -->
         <div v-show="activeTab === 'relations'" class="tab-panel">
-          <div class="relation-block">
-            <h3 class="rel-title">前置知识</h3>
-            <div class="rel-list">
-              <span v-for="id in prerequisites" :key="id" class="rel-chip">
-                {{ knowledgeTitle(id) }}
-                <button class="rel-remove" @click="removeRelation('prerequisites', id)">×</button>
-              </span>
-              <span v-if="prerequisites.length === 0" class="rel-empty">暂无</span>
-            </div>
-            <select v-model="prereqSelect" @change="addPrereq" class="rel-select">
-              <option value="">+ 添加前置知识</option>
-              <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">
-                {{ k.title }}
-              </option>
-            </select>
-          </div>
-
-          <div class="relation-block">
-            <h3 class="rel-title">相关知识</h3>
-            <div class="rel-list">
-              <span v-for="id in relatedKnowledge" :key="id" class="rel-chip">
-                {{ knowledgeTitle(id) }}
-                <button class="rel-remove" @click="removeRelation('relatedKnowledge', id)">
-                  ×
+          <!-- chats: 布局重做——原来是 4 个纵向长条，每条都是「标题 + 一排标签 + 一个常驻原生下拉框」，
+               同样的结构重复四遍，又长又生（原生 select 各浏览器长得都不一样）。
+               现在改成 2×2 卡片网格，四张卡统一的形状是：标题 + 数量 + 行尾「+ 添加」。
+               输入控件收进「+ 添加」里，点开才出现、加完自动收起 —— 平时界面只剩内容和一张干净的卡。 -->
+          <div class="rel-grid">
+            <section class="rel-card">
+              <div class="rel-card-head">
+                <h3 class="rel-title">前置知识</h3>
+                <span class="rel-count" :class="{ zero: prerequisites.length === 0 }">
+                  {{ prerequisites.length }}
+                </span>
+                <button class="rel-add-trigger" @click="toggleAdd('prerequisites')">
+                  {{ addingBlock === 'prerequisites' ? '收起' : '+ 添加' }}
                 </button>
-              </span>
-              <span v-if="relatedKnowledge.length === 0" class="rel-empty">暂无</span>
-            </div>
-            <select v-model="relatedSelect" @change="addRelated" class="rel-select">
-              <option value="">+ 添加相关知识</option>
-              <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">
-                {{ k.title }}
-              </option>
-            </select>
-          </div>
+              </div>
+              <div class="rel-list">
+                <span v-for="id in prerequisites" :key="id" class="rel-chip">
+                  {{ knowledgeTitle(id) }}
+                  <button class="rel-remove" @click="removeRelation('prerequisites', id)">×</button>
+                </span>
+                <span v-if="prerequisites.length === 0" class="rel-empty">暂无</span>
+              </div>
+              <!-- 改掉原来「选一下就立即生效」的 @change：先选、再点「添加」确认，避免误触 -->
+              <div v-if="addingBlock === 'prerequisites'" class="rel-add">
+                <select v-model="prereqSelect" class="rel-select">
+                  <option value="">选择条目…</option>
+                  <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">
+                    {{ k.title }}
+                  </option>
+                </select>
+                <button class="btn-outline" @click="addPrereq">添加</button>
+              </div>
+            </section>
 
-          <div class="relation-block">
-            <h3 class="rel-title">相关资料</h3>
-            <div class="rel-list">
-              <span v-for="text in relatedMaterials" :key="text" class="rel-chip">
-                {{ text }}
-                <button class="rel-remove" @click="removeRelation('relatedMaterials', text)">
-                  ×
+            <section class="rel-card">
+              <div class="rel-card-head">
+                <h3 class="rel-title">相关知识</h3>
+                <span class="rel-count" :class="{ zero: relatedKnowledge.length === 0 }">
+                  {{ relatedKnowledge.length }}
+                </span>
+                <button class="rel-add-trigger" @click="toggleAdd('relatedKnowledge')">
+                  {{ addingBlock === 'relatedKnowledge' ? '收起' : '+ 添加' }}
                 </button>
-              </span>
-              <span v-if="relatedMaterials.length === 0" class="rel-empty">暂无</span>
-            </div>
-            <div class="rel-add">
-              <input
-                v-model="materialInput"
-                class="rel-input"
-                placeholder="输入资料标题 / 链接"
-                @keyup.enter="addMaterial"
-              />
-              <button class="btn-outline" @click="addMaterial">添加</button>
-            </div>
-          </div>
+              </div>
+              <div class="rel-list">
+                <span v-for="id in relatedKnowledge" :key="id" class="rel-chip">
+                  {{ knowledgeTitle(id) }}
+                  <button class="rel-remove" @click="removeRelation('relatedKnowledge', id)">
+                    ×
+                  </button>
+                </span>
+                <span v-if="relatedKnowledge.length === 0" class="rel-empty">暂无</span>
+              </div>
+              <div v-if="addingBlock === 'relatedKnowledge'" class="rel-add">
+                <select v-model="relatedSelect" class="rel-select">
+                  <option value="">选择条目…</option>
+                  <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">
+                    {{ k.title }}
+                  </option>
+                </select>
+                <button class="btn-outline" @click="addRelated">添加</button>
+              </div>
+            </section>
 
-          <div class="relation-block">
-            <h3 class="rel-title">相关项目</h3>
-            <div class="rel-list">
-              <span v-for="id in relatedProjects" :key="id" class="rel-chip">
-                {{ projectTitle(id) }}
-                <button class="rel-remove" @click="removeRelation('relatedProjects', id)">×</button>
-              </span>
-              <span v-if="relatedProjects.length === 0" class="rel-empty">暂无</span>
-            </div>
-            <select v-model="projectSelect" @change="addProject" class="rel-select">
-              <option value="">+ 添加相关项目</option>
-              <option v-for="p in projectStore.projects" :key="p.id" :value="p.id">
-                {{ p.name }}
-              </option>
-            </select>
+            <section class="rel-card">
+              <div class="rel-card-head">
+                <h3 class="rel-title">相关资料</h3>
+                <span class="rel-count" :class="{ zero: relatedMaterials.length === 0 }">
+                  {{ relatedMaterials.length }}
+                </span>
+                <button class="rel-add-trigger" @click="toggleAdd('relatedMaterials')">
+                  {{ addingBlock === 'relatedMaterials' ? '收起' : '+ 添加' }}
+                </button>
+              </div>
+              <div class="rel-list">
+                <span v-for="text in relatedMaterials" :key="text" class="rel-chip">
+                  {{ text }}
+                  <button class="rel-remove" @click="removeRelation('relatedMaterials', text)">
+                    ×
+                  </button>
+                </span>
+                <span v-if="relatedMaterials.length === 0" class="rel-empty">暂无</span>
+              </div>
+              <div v-if="addingBlock === 'relatedMaterials'" class="rel-add">
+                <input
+                  v-model="materialInput"
+                  class="rel-input"
+                  placeholder="资料标题 / 链接"
+                  @keyup.enter="addMaterial"
+                />
+                <button class="btn-outline" @click="addMaterial">添加</button>
+              </div>
+            </section>
+
+            <section class="rel-card">
+              <div class="rel-card-head">
+                <h3 class="rel-title">相关项目</h3>
+                <span class="rel-count" :class="{ zero: relatedProjects.length === 0 }">
+                  {{ relatedProjects.length }}
+                </span>
+                <button class="rel-add-trigger" @click="toggleAdd('relatedProjects')">
+                  {{ addingBlock === 'relatedProjects' ? '收起' : '+ 添加' }}
+                </button>
+              </div>
+              <div class="rel-list">
+                <span v-for="id in relatedProjects" :key="id" class="rel-chip">
+                  {{ projectTitle(id) }}
+                  <button class="rel-remove" @click="removeRelation('relatedProjects', id)">
+                    ×
+                  </button>
+                </span>
+                <span v-if="relatedProjects.length === 0" class="rel-empty">暂无</span>
+              </div>
+              <div v-if="addingBlock === 'relatedProjects'" class="rel-add">
+                <select v-model="projectSelect" class="rel-select">
+                  <option value="">选择项目…</option>
+                  <option v-for="p in projectStore.projects" :key="p.id" :value="p.id">
+                    {{ p.name }}
+                  </option>
+                </select>
+                <button class="btn-outline" @click="addProject">添加</button>
+              </div>
+            </section>
           </div>
         </div>
 
@@ -387,6 +437,9 @@ function cancelEdit() {
 }
 
 // ===== 关系（chats: 第一版手动关联，本地 ref 与 item 字段同步） =====
+// 四种关系的字段名，写一次给 toggleAdd / removeRelation 共用，避免在几处重复写联合类型
+type RelationKind = 'prerequisites' | 'relatedKnowledge' | 'relatedMaterials' | 'relatedProjects'
+
 const prerequisites = ref<number[]>([])
 const relatedKnowledge = ref<number[]>([])
 const relatedMaterials = ref<string[]>([])
@@ -395,6 +448,15 @@ const prereqSelect = ref('')
 const relatedSelect = ref('')
 const projectSelect = ref('')
 const materialInput = ref('')
+
+// chats: 当前展开了「添加」输入区的分组，null = 四张卡都收起。
+// 原来四个原生下拉框常驻在页面上，又占地方又不好看；改成点「+ 添加」才展开，
+// 添加成功或再点一次「收起」就关掉。
+const addingBlock = ref<RelationKind | null>(null)
+
+function toggleAdd(kind: RelationKind) {
+  addingBlock.value = addingBlock.value === kind ? null : kind
+}
 
 // chats: 把知识库树铺平成数组，供「关系」下拉选择（子条目也能被选为前置 / 相关知识）
 function flattenItems(items: KnowledgeItem[]): KnowledgeItem[] {
@@ -424,7 +486,7 @@ function addPrereq() {
   if (id) {
     if (!prerequisites.value.includes(id)) prerequisites.value.push(id)
     prereqSelect.value = ''
-    persistRelations()
+    addAndClose()
   }
 }
 function addRelated() {
@@ -432,7 +494,7 @@ function addRelated() {
   if (id) {
     if (!relatedKnowledge.value.includes(id)) relatedKnowledge.value.push(id)
     relatedSelect.value = ''
-    persistRelations()
+    addAndClose()
   }
 }
 function addProject() {
@@ -440,7 +502,7 @@ function addProject() {
   if (id) {
     if (!relatedProjects.value.includes(id)) relatedProjects.value.push(id)
     projectSelect.value = ''
-    persistRelations()
+    addAndClose()
   }
 }
 function addMaterial() {
@@ -448,13 +510,15 @@ function addMaterial() {
   if (text) {
     if (!relatedMaterials.value.includes(text)) relatedMaterials.value.push(text)
     materialInput.value = ''
-    persistRelations()
+    addAndClose()
   }
 }
-function removeRelation(
-  kind: 'prerequisites' | 'relatedKnowledge' | 'relatedMaterials' | 'relatedProjects',
-  id: number | string,
-) {
+// chats: 四个 add* 收尾动作一样——落库 + 收起添加区。抽出来避免复制四遍。
+function addAndClose() {
+  addingBlock.value = null
+  persistRelations()
+}
+function removeRelation(kind: RelationKind, id: number | string) {
   if (kind === 'prerequisites') prerequisites.value = prerequisites.value.filter((x) => x !== id)
   else if (kind === 'relatedKnowledge')
     relatedKnowledge.value = relatedKnowledge.value.filter((x) => x !== id)
@@ -1058,19 +1122,67 @@ watch(
 }
 
 /* ===== 关系（chats）===== */
-.relation-block {
-  margin-bottom: var(--spacing-lg);
+/* chats: 2×2 卡片网格，四张卡形状完全一致（标题 + 数量 + 行尾「+ 添加」）。
+   窄屏由文件末尾的媒体查询退回单列。 */
+.rel-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-md);
+}
+.rel-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.rel-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 .rel-title {
   font-size: var(--font-size-md);
   font-weight: 600;
-  margin: 0 0 var(--spacing-sm) 0;
+  margin: 0;
+}
+/* 数量徽标：0 时压成更浅的灰，「没有」和「有 3 个」不该一样抢眼 */
+.rel-count {
+  min-width: 20px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+.rel-count.zero {
+  color: var(--color-text-light);
+}
+/* 行尾的「+ 添加」：中性文字按钮，与页面其它按钮同语言（不用色块，hover 才浮出底色） */
+.rel-add-trigger {
+  margin-left: auto;
+  padding: 2px 8px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.rel-add-trigger:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
 }
 .rel-list {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-xs);
-  margin-bottom: var(--spacing-sm);
+  /* 撑住一行高度：空态那句「暂无」和标签行视觉高度一致，四张卡不会一高一矮 */
+  min-height: 28px;
 }
 .rel-chip {
   display: inline-flex;
@@ -1098,29 +1210,40 @@ watch(
   font-size: var(--font-size-sm);
   color: var(--color-text-placeholder);
 }
-.rel-select {
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-  background: var(--color-bg-white);
-  max-width: 320px;
-}
+/* 展开的添加区：与 tags 之间一条淡线分隔；收起时这个节点整个不存在（v-if），不占高度 */
 .rel-add {
   display: flex;
   gap: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--color-border-light);
 }
+/* 下拉框/输入框统一：撑满卡片剩下的宽度（原先是写死 max-width: 320px） */
+.rel-select,
 .rel-input {
   flex: 1;
-  max-width: 320px;
-  padding: var(--spacing-sm) 12px;
+  min-width: 0;
+  padding: 6px 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
+  font-family: inherit;
+  background: var(--color-bg-white);
 }
+.rel-select:focus,
 .rel-input:focus {
   border-color: var(--color-primary);
   outline: none;
+}
+.rel-add .btn-outline {
+  flex-shrink: 0;
+}
+
+/* 窄屏退回单列。注意这条必须写在 .rel-grid 之后：媒体查询不增加优先级，
+   同名选择器后写的赢，写在前面的媒体查询会被上面的 repeat(2, …) 覆盖掉。 */
+@media (max-width: 640px) {
+  .rel-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== 文本 ===== */
