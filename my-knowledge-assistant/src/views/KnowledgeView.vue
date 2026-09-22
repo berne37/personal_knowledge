@@ -5,8 +5,28 @@
       <button class="btn btn-primary" @click="showAddModal = true">＋ 添加知识库</button>
     </div>
 
+    <!-- 搜索 + 筛选栏 -->
+    <div class="toolbar">
+      <input v-model="searchKeyword" class="search-input" placeholder="搜索知识库..." />
+      <div class="filter-group">
+        <button
+          v-for="opt in filterOptions"
+          :key="opt.label"
+          class="filter-btn"
+          :class="{ active: filterLevel === opt.value }"
+          @click="filterLevel = opt.value"
+        >
+          {{ opt.label }}
+        </button>
+      </div>
+      <span class="result-count">共 {{ filteredItems.length }} 条</span>
+    </div>
+
     <!-- chats: 列表页总览——把「一共多少、各状态几成」摆到页面上，解决「看不出全局」。
-         数字负责精确，那条堆叠比例条负责一眼看出占比关系（纯文字列表看不出这个）。 -->
+         数字负责精确，那条堆叠比例条负责一眼看出占比关系（纯文字列表看不出这个）。
+         位置在搜索栏之下：搜索是每天最常用的动作，放最上面；总览是「看一眼就走」的信息。
+         宽度上整块只占内容那么大（inline-flex），比例条靠 ov-right 撑出来，
+         正好等于下面那行图例文字的宽度，不再拖一条横贯整页的长条。 -->
     <div v-if="stats.total > 0" class="overview">
       <div class="ov-total">
         <span class="ov-num">{{ stats.total }}</span>
@@ -34,23 +54,6 @@
           </span>
         </div>
       </div>
-    </div>
-
-    <!-- 搜索 + 筛选栏 -->
-    <div class="toolbar">
-      <input v-model="searchKeyword" class="search-input" placeholder="搜索知识库..." />
-      <div class="filter-group">
-        <button
-          v-for="opt in filterOptions"
-          :key="opt.label"
-          class="filter-btn"
-          :class="{ active: filterLevel === opt.value }"
-          @click="filterLevel = opt.value"
-        >
-          {{ opt.label }}
-        </button>
-      </div>
-      <span class="result-count">共 {{ filteredItems.length }} 条</span>
     </div>
 
     <!-- 列表 -->
@@ -243,12 +246,15 @@ function goToDetail(item: KnowledgeItem) {
 }
 
 /* ===== chats: 列表页总览 ===== */
+/* inline-flex → 整块宽度由内容决定（不再撑满整行）。
+   比例条的宽度从这里来：ov-right 没有 flex:1，宽度取「图例文字」的 max-content，
+   条子写 width:100% 就正好等于图例那行的宽度。 */
 .overview {
-  display: flex;
-  flex-wrap: wrap;
+  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-xl);
-  padding: var(--spacing-md) var(--spacing-lg);
+  gap: var(--spacing-lg);
+  max-width: 100%;
+  padding: 10px var(--spacing-lg);
   margin-bottom: var(--spacing-md);
   background: var(--color-bg-white);
   border: 1px solid var(--color-border);
@@ -259,13 +265,13 @@ function goToDetail(item: KnowledgeItem) {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  padding-right: var(--spacing-xl);
+  padding-right: var(--spacing-lg);
   border-right: 1px solid var(--color-border-light);
 }
 
 /* 注意 global.css 的 `* { font-weight: normal }`：大数字的 600 必须显式写 */
 .ov-num {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 600;
   line-height: 1.1;
   color: var(--color-text);
@@ -277,15 +283,14 @@ function goToDetail(item: KnowledgeItem) {
 }
 
 .ov-right {
-  flex: 1;
-  min-width: 220px;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: 6px;
 }
 
 .ov-bar {
   display: flex;
+  width: 100%;
   height: 8px;
   border-radius: var(--radius-full);
   overflow: hidden;
@@ -311,7 +316,7 @@ function goToDetail(item: KnowledgeItem) {
 .ov-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--spacing-lg);
+  gap: var(--spacing-md);
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }
