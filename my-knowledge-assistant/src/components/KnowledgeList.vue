@@ -1,5 +1,5 @@
 <template>
-  <ul class="item-list">
+  <ul v-if="props.items.length > 0" class="item-list">
     <KnowledgeItem
       v-for="item in props.items"
       :key="item.id"
@@ -10,7 +10,11 @@
       @updated="$emit('updated')"
     />
   </ul>
-  <p v-if="props.items.length === 0">暂无技能，请添加。</p>
+  <!-- chats: 卡片化改版——空状态从裸文字改成虚线卡片，并补一句下一步该做什么的引导 -->
+  <div v-else class="empty-hint">
+    <p>还没有知识库条目</p>
+    <span>点右上角「添加知识库」，记下第一个要学的东西</span>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -36,8 +40,29 @@ function handleDelete(id: number) {
 </script>
 
 <style scoped>
+/* chats: 卡片化改版——列表从「紧贴的行」改为有间隙的卡片栈 */
 .item-list {
   list-style: none;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.empty-hint {
+  padding: var(--spacing-xl) var(--spacing-md);
+  text-align: center;
+  background: var(--color-bg-white);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+}
+.empty-hint p {
+  margin: 0 0 var(--spacing-xs);
+  font-size: var(--font-size-md);
+  color: var(--color-text-secondary);
+}
+.empty-hint span {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-placeholder);
 }
 </style>

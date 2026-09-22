@@ -152,27 +152,33 @@ function goToDetail(item: KnowledgeItem) {
   outline: none;
 }
 
+/* chats: 卡片化改版——4 个筛选按钮原先各自带边框，与搜索框挨在一起时「框太多」。
+   改成分段控件（segmented control）：整组共用一个外框，只有选中项有实心底色。 */
 .filter-group {
   display: flex;
-  gap: var(--spacing-xs);
+  gap: 2px;
+  padding: 2px;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .filter-btn {
-  padding: var(--spacing-xs) var(--spacing-md);
-  border: 1px solid var(--color-border);
+  padding: 4px 14px;
+  border: none;
   border-radius: var(--radius-sm);
-  background: var(--color-bg-white);
+  background: transparent;
+  color: var(--color-text-secondary);
   cursor: pointer;
   font-size: var(--font-size-sm);
   transition: all var(--transition-fast);
 }
 .filter-btn:hover {
-  background: var(--color-bg-hover);
+  color: var(--color-text);
 }
 .filter-btn.active {
   background: var(--color-primary);
   color: #fff;
-  border-color: var(--color-primary);
 }
 
 .result-count {
