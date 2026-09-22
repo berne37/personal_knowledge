@@ -1,9 +1,13 @@
 // 专门存放 TS 类型定义
+import type { Component } from 'vue'
+
 // 复习点 2：使用 interface 定义对象的形状（Shape）
 export interface MenuItem {
   path: string
   name: string
-  icon?: string // 属性后面加 ? 表示可选属性
+  // 图标组件（lucide-vue-next 导出的图标），配 <component :is="icon" /> 渲染。
+  // 原来是脚手架留下的 icon?: string 占位，从没被用过，这里换成真正能渲染的类型
+  icon?: Component
   tour?: string // 新手引导用：对应引导步骤的 data-tour 选择器
 }
 

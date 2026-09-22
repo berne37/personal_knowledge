@@ -2,16 +2,19 @@
 import type { MenuItem } from '@/types'
 import { ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
+import { FileText, FolderKanban, Library, MessageSquare, Network, Settings } from 'lucide-vue-next'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
 
-const menuList = ref<MenuItem[]>([
-  { path: '/', name: '知识库', tour: 'knowledge' },
-  { path: '/chat', name: 'AI对话', tour: 'chat' },
-  { path: '/mindmap', name: '思维导图', tour: 'mindmap' },
-  { path: '/pdf', name: 'PDF阅读', tour: 'pdf' },
-  { path: '/projects', name: '项目进度', tour: 'projects' },
-  { path: '/settings', name: '设置', tour: 'settings' },
-])
+// 菜单是静态数据，永远不会变，所以用普通常量而不是 ref。
+// 另外 ref 会把数组元素深包装成 reactive proxy，图标组件对象被包住后渲染多绕一层，没必要。
+const menuList: MenuItem[] = [
+  { path: '/', name: '知识库', icon: Library, tour: 'knowledge' },
+  { path: '/chat', name: 'AI对话', icon: MessageSquare, tour: 'chat' },
+  { path: '/mindmap', name: '思维导图', icon: Network, tour: 'mindmap' },
+  { path: '/pdf', name: 'PDF阅读', icon: FileText, tour: 'pdf' },
+  { path: '/projects', name: '项目进度', icon: FolderKanban, tour: 'projects' },
+  { path: '/settings', name: '设置', icon: Settings, tour: 'settings' },
+]
 
 // 引导组件实例：侧边栏「新手引导」按钮通过它重新打开引导
 const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
@@ -23,7 +26,9 @@ const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
       <ul>
         <li v-for="item in menuList" :key="item.path" :data-tour="item.tour">
           <RouterLink :to="item.path" class="nav-link">
-            {{ item.name }}
+            <!-- chats: 图标是 SVG 组件，颜色继承 currentColor，所以选中态变蓝时图标会跟着变 -->
+            <component :is="item.icon" :size="18" :stroke-width="1.8" />
+            <span>{{ item.name }}</span>
           </RouterLink>
         </li>
       </ul>
@@ -98,8 +103,17 @@ li:hover {
 }
 
 .nav-link {
+  /* chats: 图标 + 文字排成一行、垂直居中；gap 用的是设计 tokens，跟全局间距体系保持一致 */
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
   text-decoration: none;
   color: inherit;
+}
+
+/* 空间不足时不让图标被压扁变形 */
+.nav-link svg {
+  flex-shrink: 0;
 }
 
 /* 修复：侧边栏原先没有任何选中态，用户看不出自己当前在哪个页面。
