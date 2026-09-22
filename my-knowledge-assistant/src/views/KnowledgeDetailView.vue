@@ -217,57 +217,111 @@
             </aside>
 
             <div class="rel-grid">
-              <section class="rel-card">
+              <!-- chats: 前置是四组里唯一「有方向」的，所以它占整行、内部分两段：
+                   上段「我依赖」记录在本条身上，可加可删；
+                   下段「依赖我的」是反查出来的（谁把本条列为前置），只读，
+                   点一下跳到对方条目去维护——因为那条记录的归属权在对方身上。 -->
+              <section class="rel-card rel-card-wide">
                 <div class="rel-card-head">
                   <ArrowUp :size="15" :stroke-width="1.8" class="rel-icon" />
                   <h3 class="rel-title">前置知识</h3>
-                  <span class="rel-count" :class="{ zero: prerequisites.length === 0 }">
-                    {{ prerequisites.length }}
-                  </span>
                   <button class="rel-add-trigger" @click="toggleAdd('prerequisites')">
                     {{ addingBlock === 'prerequisites' ? '收起' : '+ 添加' }}
                   </button>
                 </div>
-                <div class="rel-list">
-                  <span v-for="id in prerequisites" :key="id" class="rel-chip">
-                    {{ knowledgeTitle(id) }}
-                    <button class="rel-remove" @click="removeRelation('prerequisites', id)">
-                      ×
-                    </button>
-                  </span>
-                  <span v-if="prerequisites.length === 0" class="rel-empty">暂无</span>
-                </div>
-                <!-- 改掉原来「选一下就立即生效」的 @change：先选、再点「添加」确认，避免误触 -->
-                <div v-if="addingBlock === 'prerequisites'" class="rel-add">
-                  <select v-model="prereqSelect" class="rel-select">
-                    <option value="">选择条目…</option>
-                    <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">
-                      {{ k.title }}
-                    </option>
-                  </select>
-                  <button class="btn-outline" @click="addPrereq">添加</button>
+                <p class="rel-hint">先学会它们，本条才看得懂</p>
+                <div class="rel-cols">
+                  <div class="rel-seg">
+                    <div class="rel-seg-head">
+                      <span class="rel-seg-title">我依赖</span>
+                      <span class="rel-count" :class="{ zero: prerequisites.length === 0 }">
+                        {{ prerequisites.length }}
+                      </span>
+                    </div>
+                    <div class="rel-list">
+                      <span v-for="id in prerequisites" :key="id" class="rel-chip">
+                        {{ knowledgeTitle(id) }}
+                        <button class="rel-remove" @click="removeRelation('prerequisites', id)">
+                          ×
+                        </button>
+                      </span>
+                      <span v-if="prerequisites.length === 0" class="rel-empty">暂无</span>
+                    </div>
+                    <!-- 改掉原来「选一下就立即生效」的 @change：先选、再点「添加」确认，避免误触 -->
+                    <div v-if="addingBlock === 'prerequisites'" class="rel-add">
+                      <select v-model="prereqSelect" class="rel-select">
+                        <option value="">选择条目…</option>
+                        <option v-for="k in otherKnowledgeItems" :key="k.id" :value="k.id">
+                          {{ k.title }}
+                        </option>
+                      </select>
+                      <button class="btn-outline" @click="addPrereq">添加</button>
+                    </div>
+                  </div>
+
+                  <div class="rel-seg">
+                    <div class="rel-seg-head">
+                      <span class="rel-seg-title">依赖我的</span>
+                      <span class="rel-count" :class="{ zero: prereqInbound.length === 0 }">
+                        {{ prereqInbound.length }}
+                      </span>
+                      <span class="rel-seg-auto">自动</span>
+                    </div>
+                    <div class="rel-list">
+                      <button
+                        v-for="k in prereqInbound"
+                        :key="k.id"
+                        class="rel-chip rel-chip-out"
+                        :title="`${k.title} 把本条列为前置，点击前往`"
+                        @click="goToItem(k.id!)"
+                      >
+                        {{ k.title }}
+                        <span class="rel-out">↗</span>
+                      </button>
+                      <span v-if="prereqInbound.length === 0" class="rel-empty">暂无</span>
+                    </div>
+                  </div>
                 </div>
               </section>
 
+              <!-- chats: 相关知识语义上是对称的，所以「我加的」和「对方加我的」并成一条列表，
+                   不拆成两段（拆了反而像两类东西）。来源靠 chip 的样式区分：
+                   实线 = 我建的、可删；虚线带 ↗ = 对方建的、只读、点一下跳过去。 -->
               <section class="rel-card">
                 <div class="rel-card-head">
                   <ArrowLeftRight :size="15" :stroke-width="1.8" class="rel-icon" />
                   <h3 class="rel-title">相关知识</h3>
-                  <span class="rel-count" :class="{ zero: relatedKnowledge.length === 0 }">
-                    {{ relatedKnowledge.length }}
+                  <span class="rel-count" :class="{ zero: relatedRows.length === 0 }">
+                    {{ relatedRows.length }}
                   </span>
                   <button class="rel-add-trigger" @click="toggleAdd('relatedKnowledge')">
                     {{ addingBlock === 'relatedKnowledge' ? '收起' : '+ 添加' }}
                   </button>
                 </div>
+                <p class="rel-hint">同一层级的平行知识</p>
                 <div class="rel-list">
-                  <span v-for="id in relatedKnowledge" :key="id" class="rel-chip">
-                    {{ knowledgeTitle(id) }}
-                    <button class="rel-remove" @click="removeRelation('relatedKnowledge', id)">
-                      ×
+                  <template v-for="row in relatedRows" :key="row.id">
+                    <span v-if="!row.inbound" class="rel-chip">
+                      {{ knowledgeTitle(row.id) }}
+                      <button
+                        class="rel-remove"
+                        @click="removeRelation('relatedKnowledge', row.id)"
+                      >
+                        ×
+                      </button>
+                    </span>
+                    <!-- 对方标的：本页删不掉（删了自己这边，反查立刻又把它显示回来），只能跳过去改 -->
+                    <button
+                      v-else
+                      class="rel-chip rel-chip-out"
+                      :title="`${knowledgeTitle(row.id)} 把本条列为相关知识，点击前往`"
+                      @click="goToItem(row.id)"
+                    >
+                      {{ knowledgeTitle(row.id) }}
+                      <span class="rel-out">↗</span>
                     </button>
-                  </span>
-                  <span v-if="relatedKnowledge.length === 0" class="rel-empty">暂无</span>
+                  </template>
+                  <span v-if="relatedRows.length === 0" class="rel-empty">暂无</span>
                 </div>
                 <div v-if="addingBlock === 'relatedKnowledge'" class="rel-add">
                   <select v-model="relatedSelect" class="rel-select">
@@ -291,6 +345,7 @@
                     {{ addingBlock === 'relatedMaterials' ? '收起' : '+ 添加' }}
                   </button>
                 </div>
+                <p class="rel-hint">外部链接、书名、参考材料（文件本身放「资料」tab）</p>
                 <div class="rel-list">
                   <span v-for="text in relatedMaterials" :key="text" class="rel-chip">
                     {{ text }}
@@ -322,6 +377,7 @@
                     {{ addingBlock === 'relatedProjects' ? '收起' : '+ 添加' }}
                   </button>
                 </div>
+                <p class="rel-hint">用上这条知识的项目</p>
                 <div class="rel-list">
                   <span v-for="id in relatedProjects" :key="id" class="rel-chip">
                     {{ projectTitle(id) }}
@@ -513,16 +569,6 @@ const materialInput = ref('')
 // 添加成功或再点一次「收起」就关掉。
 const addingBlock = ref<RelationKind | null>(null)
 
-// chats: 左栏「中心锚点」的汇总——四组各几个、合计几个。
-// 数据源还是上面那四个 ref，这里只换个视角读一遍，不额外存一份状态（避免两处数据打架）。
-const relGroups = computed(() => [
-  { label: '前置知识', count: prerequisites.value.length },
-  { label: '相关知识', count: relatedKnowledge.value.length },
-  { label: '相关资料', count: relatedMaterials.value.length },
-  { label: '相关项目', count: relatedProjects.value.length },
-])
-const totalRelations = computed(() => relGroups.value.reduce((sum, g) => sum + g.count, 0))
-
 function toggleAdd(kind: RelationKind) {
   addingBlock.value = addingBlock.value === kind ? null : kind
 }
@@ -542,7 +588,54 @@ const otherKnowledgeItems = computed(() =>
   flattenItems(store.items).filter((k) => k.id !== item.value?.id),
 )
 
-// TODO: 删除条目时清理反向关联，否则会出现幽灵关联（v1 暂未处理）
+// chats: 关系双向——记录只存在「声明方」身上（A 声明「前置是 B」，这条就只存在 A 里），
+// 所以「谁依赖我」这种反向关系靠反查全库得出来：不改数据结构、不用迁移历史数据、
+// 条目一删反向也跟着消失。本地个人库数据量小，全量遍历的成本可以忽略。
+const prereqInbound = computed(() => {
+  const myId = item.value?.id
+  if (myId == null) return []
+  return flattenItems(store.items).filter((k) => k.id !== myId && k.prerequisites?.includes(myId))
+})
+
+// 相关知识在语义上是对称的，所以把「我加它的」和「它加我的」并成一条列表，
+// 只用一个 inbound 标记区分来源：
+// inbound=true 表示记录存在对方身上，本页删不掉（删了自己这边，反查立刻又把它显示回来），
+// 只能点进去改。
+const relatedRows = computed(() => {
+  const rows: Array<{ id: number; inbound: boolean }> = []
+  for (const id of relatedKnowledge.value) rows.push({ id, inbound: false })
+  const myId = item.value?.id
+  if (myId == null) return rows
+  for (const k of flattenItems(store.items)) {
+    if (k.id == null || k.id === myId) continue
+    if (!k.relatedKnowledge?.includes(myId)) continue
+    if (rows.some((r) => r.id === k.id)) continue
+    rows.push({ id: k.id, inbound: true })
+  }
+  return rows
+})
+
+// chats: 反查出来的关系记录在对方身上，本页只能看不能改，给个入口跳过去——
+// 否则用户看到一条「依赖我的」，既不知道是谁、也没法去维护。
+function goToItem(id: number) {
+  router.push({ name: 'KnowledgeDetail', params: { id } })
+}
+
+// chats: 左栏「中心锚点」的汇总——四组各几个、合计几个。
+// 数据源还是那四个 ref 加上面的反查结果，只换个视角读一遍，不额外存一份状态
+// （两份数据迟早打架）。这里的数字要和右栏卡片对得上，所以前置算的是
+// 「我依赖 + 依赖我的」两段之和，相关知识算的是合并去重后的条数。
+const relGroups = computed(() => [
+  { label: '前置知识', count: prerequisites.value.length + prereqInbound.value.length },
+  { label: '相关知识', count: relatedRows.value.length },
+  { label: '相关资料', count: relatedMaterials.value.length },
+  { label: '相关项目', count: relatedProjects.value.length },
+])
+const totalRelations = computed(() => relGroups.value.reduce((sum, g) => sum + g.count, 0))
+
+// TODO: 反向关系已由上面的反查覆盖，但正向的死引用还没清——删掉条目 B 后，
+// 曾经声明过「前置是 B」的 A 里仍然留着那个 id，界面会显示「未知条目(#3)」。
+// 要根治得在 knowledgeStore.deleteItem 里扫全库剔除该 id。
 function knowledgeTitle(id: number): string {
   return store.findItemById(id)?.title ?? `未知条目(#${id})`
 }
@@ -1310,12 +1403,47 @@ watch(
   color: var(--color-text-light);
 }
 
-/* 右栏四张卡仍是 2×2，但整体往右让开那条导轨 */
+/* 右侧四张卡。列数交给 auto-fit 自己算：宽屏 3 列、中屏 2 列、窄屏 1 列，
+   不用为每个断点手写一遍列数。空轨道会被 auto-fit 折叠，剩下的卡片自动摊平宽度，
+   所以只有 3 张卡的那一行不会留一个空格子。 */
 .rel-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: var(--spacing-md);
   padding-left: var(--spacing-lg);
+}
+/* 前置知识跨满整行：它是四组里唯一有方向的，内部要放下「我依赖 / 依赖我的」两段 */
+.rel-card-wide {
+  grid-column: 1 / -1;
+}
+/* 宽卡内部那两段并排 */
+.rel-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-md);
+}
+.rel-seg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  min-width: 0; /* 不加的话里面的长标题不会省略，而是把这半边的列顶宽 */
+}
+.rel-seg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+.rel-seg-title {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+/* 「自动」小标：提示这段不归本页管，维护要去对方条目 */
+.rel-seg-auto {
+  padding: 1px 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-xs);
 }
 .rel-card {
   display: flex;
@@ -1343,6 +1471,14 @@ watch(
   font-size: var(--font-size-md);
   font-weight: 600;
   margin: 0;
+}
+/* 标题下的一行说明：回答「这组和那组的区别是什么」。
+   前置 / 相关以前长得一样、操作也一样，就是缺这行字，用户选的时候只能猜。 */
+.rel-hint {
+  margin: 0;
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
 }
 /* 数量徽标：0 时压成更浅的灰，「没有」和「有 3 个」不该一样抢眼 */
 .rel-count {
@@ -1389,6 +1525,26 @@ watch(
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   font-size: var(--font-size-sm);
+}
+/* 对方条目标注的关系（反查出来的）：虚线框 + ↗，一眼看出「这条不是我建的」，
+   点一下跳到对方条目去改——因为记录存在对方身上，在本页删了也会被反查显示回来。
+   注意这里同时要重置 button 的 UA 样式（它现在是 <button> 而不是 <span>）。 */
+.rel-chip-out {
+  font-family: inherit;
+  color: var(--color-text-secondary);
+  background: none;
+  border-style: dashed;
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+.rel-chip-out:hover {
+  border-color: var(--color-text-light);
+  color: var(--color-text);
+}
+.rel-out {
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-xs);
 }
 .rel-remove {
   background: none;
