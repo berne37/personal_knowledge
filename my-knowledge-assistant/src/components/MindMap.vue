@@ -86,6 +86,10 @@ function doRender(data: MindMapNode) {
       // 让树从左往右生长，视觉更平衡，也减少右侧被截断的感觉。
       initRootNodePosition: [80, 'center'],
       theme: 'primary', // 主题色
+      // chats: 主题默认把 backgroundColor('#fafafa') 以内联样式写到容器上（Style.js 的
+      // setBackgroundStyle），这就是导图外面那层「基础卡片」——内联样式优先级高于任何
+      // 选择器，CSS 里写 background: transparent 压不住，只能从主题配置这头关掉。
+      themeConfig: { backgroundColor: 'transparent' },
       enableFreeDrag: true, // 允许自由拖拽
     })
     // chats: AI 重新生成或数据变化时，重新适配容器尺寸，避免新图被旧尺寸裁切
@@ -148,10 +152,13 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* chats: 不再固定高度/隐藏溢出。宽度交给 JS 按内容撑开（max-content），
-   外层（KnowledgeDetailView 的 .mindmap-container）负责 overflow:auto 滚动。 */
+   外层（KnowledgeDetailView 的 .mindmap-container）负责 overflow:auto 滚动。
+   margin: auto 是「小图居中、大图可滚」的关键：外层是 flex，图比视口小时
+   auto 外边距把它推到正中，比视口大时 auto 解析为 0、照常从左上滚动
+   （用 justify-content: center 会在大图时把左侧滚出可视区，永远滚不回来）。 */
 .mindmap-wrapper {
   width: max-content;
-  min-width: 100%;
+  margin: auto;
   min-height: 300px;
 }
 

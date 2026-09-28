@@ -532,7 +532,7 @@ async function saveEdit() {
     level: editLevel.value,
   })
   isEditing.value = false
-  await loadItem()
+  loadItem(false) // chats: 保存后刷新本条数据，避免编辑态和常态数据不同步
 }
 
 function cancelEdit() {
@@ -702,7 +702,7 @@ async function persistRelations() {
 }
 
 // ===== 加载数据 =====
-async function loadItem() {
+async function loadItem(showLoading = true) {
   // 路由参数是 id（字符串），要转成数字才能和数据库里的 id 比对
   const id = Number(route.params.id)
   if (!id || Number.isNaN(id)) {
@@ -710,7 +710,10 @@ async function loadItem() {
     return
   }
 
-  loading.value = true
+  // 🔧 修复：原来无条件 loading.value = true，生成导图/保存笔记后的重查会把整页
+  // 卸载重挂（v-if="loading"），看起来像刷新。改为由调用方决定是否显示加载态。
+  if (showLoading) loading.value = true
+
   try {
     // chats: 关键修复——始终 await 知识库数据加载完成再查找，不再用
     // `store.items.length === 0` 提前跳过。刷新详情页是全新会话，store 初始化加载
@@ -897,7 +900,7 @@ async function handleGenerateMindmap() {
       undefined,
       (data) => {
         store.updateItem(current.id!, { mindmapData: data })
-        loadItem()
+        loadItem(false) // chats: 生成完成后只换数据，不触发整页 loading
         isGenerating.value = false
       },
       (error) => {
@@ -1767,8 +1770,11 @@ watch(
   gap: var(--spacing-sm);
 }
 /* chat: 大导图在卡片内滚动查看；容器尺寸由内部 MindMap 按内容撑开（max-content），
-   超出 max-height 的部分纵向滚动，超出宽度的部分横向滚动。 */
+   超出 max-height 的部分纵向滚动，超出宽度的部分横向滚动。
+   display: flex 配合内部 .mindmap-wrapper 的 margin: auto：
+   小图在视口内居中，大图 auto 外边距归零、照常滚动。 */
 .mindmap-container {
+  display: flex;
   overflow: auto;
   max-height: 78vh;
   min-height: 0;

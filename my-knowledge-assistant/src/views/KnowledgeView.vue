@@ -1,7 +1,39 @@
 <template>
   <div>
     <div class="header">
-      <h2>知识库管理</h2>
+      <!-- chats: 总览放进标题行——标题和总览是一组「页面是什么 + 现在有多少」的信息，
+           添加按钮留在最右，左右分组用 space-between 拉开 -->
+      <div class="header-left">
+        <h2>知识库管理</h2>
+        <div v-if="stats.total > 0" class="overview">
+          <div class="ov-total">
+            <span class="ov-num">{{ stats.total }}</span>
+            <span class="ov-label">条目总数</span>
+          </div>
+          <div class="ov-right">
+            <div class="ov-bar">
+              <span v-if="stats.done" class="seg seg-done" :style="{ width: ratios.done }"></span>
+              <span
+                v-if="stats.learning"
+                class="seg seg-learning"
+                :style="{ width: ratios.learning }"
+              ></span>
+              <span v-if="stats.todo" class="seg seg-todo" :style="{ width: ratios.todo }"></span>
+            </div>
+            <div class="ov-legend">
+              <span class="ov-lg">
+                <span class="dot dot-done"></span>已学会 <b>{{ stats.done }}</b>
+              </span>
+              <span class="ov-lg">
+                <span class="dot dot-learning"></span>学习中 <b>{{ stats.learning }}</b>
+              </span>
+              <span class="ov-lg">
+                <span class="dot dot-todo"></span>待学习 <b>{{ stats.todo }}</b>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
       <button class="btn btn-primary" @click="showAddModal = true">＋ 添加知识库</button>
     </div>
 
@@ -20,40 +52,6 @@
         </button>
       </div>
       <span class="result-count">共 {{ filteredItems.length }} 条</span>
-    </div>
-
-    <!-- chats: 列表页总览——把「一共多少、各状态几成」摆到页面上，解决「看不出全局」。
-         数字负责精确，那条堆叠比例条负责一眼看出占比关系（纯文字列表看不出这个）。
-         位置在搜索栏之下：搜索是每天最常用的动作，放最上面；总览是「看一眼就走」的信息。
-         宽度上整块只占内容那么大（inline-flex），比例条靠 ov-right 撑出来，
-         正好等于下面那行图例文字的宽度，不再拖一条横贯整页的长条。 -->
-    <div v-if="stats.total > 0" class="overview">
-      <div class="ov-total">
-        <span class="ov-num">{{ stats.total }}</span>
-        <span class="ov-label">条目总数</span>
-      </div>
-      <div class="ov-right">
-        <div class="ov-bar">
-          <span v-if="stats.done" class="seg seg-done" :style="{ width: ratios.done }"></span>
-          <span
-            v-if="stats.learning"
-            class="seg seg-learning"
-            :style="{ width: ratios.learning }"
-          ></span>
-          <span v-if="stats.todo" class="seg seg-todo" :style="{ width: ratios.todo }"></span>
-        </div>
-        <div class="ov-legend">
-          <span class="ov-lg">
-            <span class="dot dot-done"></span>已学会 <b>{{ stats.done }}</b>
-          </span>
-          <span class="ov-lg">
-            <span class="dot dot-learning"></span>学习中 <b>{{ stats.learning }}</b>
-          </span>
-          <span class="ov-lg">
-            <span class="dot dot-todo"></span>待学习 <b>{{ stats.todo }}</b>
-          </span>
-        </div>
-      </div>
     </div>
 
     <!-- 列表 -->
@@ -249,13 +247,22 @@ function goToDetail(item: KnowledgeItem) {
 /* inline-flex → 整块宽度由内容决定（不再撑满整行）。
    比例条的宽度从这里来：ov-right 没有 flex:1，宽度取「图例文字」的 max-content，
    条子写 width:100% 就正好等于图例那行的宽度。 */
+/* chats: 标题 + 总览一组靠左，添加按钮靠右 */
+.header-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-md) var(--spacing-lg);
+  /* 总览是 inline-flex 只占内容宽度，min-width:0 防止它在窄屏把右侧按钮挤出去 */
+  min-width: 0;
+}
+
 .overview {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-lg);
   max-width: 100%;
-  padding: 10px var(--spacing-lg);
-  margin-bottom: var(--spacing-md);
+  padding: 6px var(--spacing-md);
   background: var(--color-bg-white);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -269,9 +276,10 @@ function goToDetail(item: KnowledgeItem) {
   border-right: 1px solid var(--color-border-light);
 }
 
-/* 注意 global.css 的 `* { font-weight: normal }`：大数字的 600 必须显式写 */
+/* 注意 global.css 的 `* { font-weight: normal }`：大数字的 600 必须显式写。
+   22px 而不是原来的 28px——挪进标题行后，数字不能比 h2 的标题还抢眼 */
 .ov-num {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 600;
   line-height: 1.1;
   color: var(--color-text);
