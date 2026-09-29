@@ -1,5 +1,6 @@
 <template>
-  <div class="project-view">
+  <!-- 🔧 修复：根类名原为 project-view，样式定义的却是 .projects-view，导致限宽居中规则从未生效 -->
+  <div class="projects-view">
     <h2>项目进度管理</h2>
     <button class="btn-primary" @click="showCreateModel = true">+ 新建项目</button>
   </div>

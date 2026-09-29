@@ -226,14 +226,61 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
   }
 
   // 递归删除条目（含子条目）
+  // chats: 删除时把被删条目（含整棵子树）的 id 收集起来，删完全库扫一遍，
+  // 把其它条目里指向这些 id 的 前置/相关 引用一并剔除——否则会留下「未知条目(#n)」
+  // 的幽灵关联。反向的「依赖我的」是读取时动态遍历算出来的，条目没了自然消失；
+  // 正向的声明存在对方身上，必须在这里显式清理。
+  function collectIds(node: KnowledgeItem, acc: number[]) {
+    if (node.id != null) acc.push(node.id)
+    for (const child of node.children || []) collectIds(child, acc)
+  }
+
+  async function cleanupGhostRefs(removedIds: number[]) {
+    if (!removedIds.length) return
+    const db = await dbPromise
+    const allItems = await db.getAll('items')
+    for (const rootItem of allItems) {
+      let isDirty = false
+      // 🔧 修复：只扫根条目顶层会漏掉子条目里的声明，递归整棵树
+      function sweep(nodes: KnowledgeItem[]) {
+        for (const node of nodes) {
+          const pre = node.prerequisites
+          if (pre?.length) {
+            const filtered = pre.filter((rid) => !removedIds.includes(rid))
+            if (filtered.length !== pre.length) {
+              node.prerequisites = filtered
+              isDirty = true
+            }
+          }
+          const rel = node.relatedKnowledge
+          if (rel?.length) {
+            const filtered = rel.filter((rid) => !removedIds.includes(rid))
+            if (filtered.length !== rel.length) {
+              node.relatedKnowledge = filtered
+              isDirty = true
+            }
+          }
+          if (node.children?.length) sweep(node.children)
+        }
+      }
+      sweep([rootItem])
+      // 有改动才回写；注意关系可能声明在子条目上，必须回写整棵根条目
+      if (isDirty) await db.put('items', rootItem)
+    }
+  }
+
   async function deleteItem(id: number) {
     if (id == null) return // 防止删错条目
     const db = await dbPromise
+    // 用局部数组收集，避免挂在 store 作用域上中途抛错残留脏 id
+    const removedIds: number[] = []
 
     // 先检查是否是根条目
     const root = await db.get('items', id)
     if (root) {
+      collectIds(root, removedIds)
       await db.delete('items', id)
+      await cleanupGhostRefs(removedIds)
       await loadItems()
       return
     }
@@ -241,23 +288,26 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     // 在所有根条目中递归查找并删除子条目
     const allItems = await db.getAll('items')
 
-    function findAndDelete(nodes: KnowledgeItem[]): boolean {
+    function findAndDelete(nodes: KnowledgeItem[]): KnowledgeItem | null {
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i]! // 非空断言（索引保证存在）
         if (node.id === id) {
-          nodes.splice(i, 1)
-          return true
+          return nodes.splice(i, 1)[0] ?? null
         }
         if (node.children?.length) {
-          if (findAndDelete(node.children)) return true
+          const found = findAndDelete(node.children)
+          if (found) return found
         }
       }
-      return false
+      return null
     }
 
     for (const item of allItems) {
-      if (findAndDelete([item])) {
+      const removed = findAndDelete([item])
+      if (removed) {
+        collectIds(removed, removedIds)
         await db.put('items', item)
+        await cleanupGhostRefs(removedIds)
         await loadItems()
         return
       }
