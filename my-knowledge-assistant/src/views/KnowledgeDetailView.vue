@@ -698,7 +698,7 @@ async function persistRelations() {
     relatedMaterials: relatedMaterials.value,
     relatedProjects: relatedProjects.value,
   })
-  await loadItem()
+  await loadItem(false)
 }
 
 // ===== 加载数据 =====
@@ -797,7 +797,7 @@ async function handleFileChange(e: Event) {
 
   try {
     await store.addAttachment(item.value.id!, file)
-    await loadItem()
+    await loadItem(false)
     input.value = ''
   } catch (error) {
     console.error('上传失败:', error)
@@ -824,7 +824,7 @@ async function addViaHandle() {
     const handle = handles[0]
     // 句柄是结构化克隆安全的对象，可直接存进 IndexedDB
     await store.addAttachmentByHandle(item.value.id!, handle)
-    await loadItem()
+    await loadItem(false)
   } catch (error: any) {
     // 用户按了取消（AbortError）就不打扰；其他错误才提示
     if (error?.name !== 'AbortError') {
@@ -878,7 +878,7 @@ async function handleRemoveAttachment(attachmentId: string) {
 
   try {
     await store.removeAttachment(item.value.id!, attachmentId)
-    await loadItem()
+    await loadItem(false)
   } catch (error) {
     console.error('删除失败:', error)
     alert('删除失败，请重试')
