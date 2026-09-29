@@ -1,6 +1,6 @@
 import { openDB } from 'idb'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { isProxy, ref, toRaw } from 'vue'
 import type { Attachment, KnowledgeItem } from '@/types'
 
 // 初始化 IndexedDB（版本 2）
@@ -13,6 +13,17 @@ const dbPromise = openDB('knowledgeDB', 2, {
 })
 
 export const useKnowledgeStore = defineStore('knowledge', () => {
+  // 🔧 修复：调用方可能把 Vue 响应式代理直接传进来（如详情页 persistRelations 传的
+  // ref 数组）。IndexedDB 写入前要做结构化克隆，Proxy 克隆不了，会抛
+  // DataCloneError 且是静默失败（Uncaught in promise）——界面上看似成功，
+  // 刷新后数据才消失。这里在 store 门口统一剥掉代理：toRaw 返回的是
+  // reactive 包装前的原始对象/数组，元素都是原始值，到这一步已可安全克隆。
+  // 堵在 store 层而不是各调用点，是因为任何现在或将来往库里写数据的路径
+  // 都可能踩同一个坑（loadItems 里已修过一次同族问题）。
+  function stripProxy<T>(value: T): T {
+    return (isProxy(value) ? toRaw(value) : value) as T
+  }
+
   const items = ref<KnowledgeItem[]>([])
 
   // chats: loadItems 单飞——store 初始化(本文件末尾)与详情页 loadItem 会并发调用，
@@ -258,13 +269,20 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     if (id == null) return // 没 id 直接拒绝，避免 undefined === undefined 误命中
     const db = await dbPromise
 
+    // 🔧 入口处统一剥代理 + 过滤 undefined（见 stripProxy 注释），
+    // 下面根条目 / 子条目两条合并路径就不用各自防御
+    const plainData = Object.fromEntries(
+      Object.entries(data)
+        .filter(([, value]) => value !== undefined)
+        .map(([key, value]) => [key, stripProxy(value)]),
+    ) as Partial<KnowledgeItem>
+
     // 先检查是否是根条目
     const root = await db.get('items', id)
     if (root) {
-      // 只合并已定义的字段，避免 undefined 覆盖原有值
       const updated: KnowledgeItem = {
         ...root,
-        ...Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)),
+        ...plainData,
         updatedAt: new Date().toISOString(),
       }
       await db.put('items', updated)
@@ -279,10 +297,9 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i]!
         if (node.id === id) {
-          // 同样只合并已定义的字段
           const updatedNode: KnowledgeItem = {
             ...node,
-            ...Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)),
+            ...plainData,
             updatedAt: new Date().toISOString(),
           }
           nodes[i] = updatedNode

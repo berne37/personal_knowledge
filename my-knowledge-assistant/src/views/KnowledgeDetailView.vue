@@ -101,6 +101,33 @@
               </button>
             </section>
 
+            <!-- chats: 思维导图放在概览——它是这条知识的结构总览（学了什么、分几块），
+                 和笔记摘要同属「看一眼就懂全局」的信息；「知识」tab 因此回归纯笔记业务。
+                 生成按钮仍在标题右侧，与其它 tab 的页头动作位置一致。 -->
+            <section class="kb-section">
+              <div class="kb-section-head">
+                <h3 class="kb-title">思维导图</h3>
+                <button
+                  class="btn-outline kb-head-action"
+                  @click="handleGenerateMindmap"
+                  :disabled="isGenerating"
+                >
+                  {{
+                    isGenerating ? '生成中...' : item.mindmapData ? '更新思维导图' : '生成思维导图'
+                  }}
+                </button>
+              </div>
+              <div class="mindmap-panel">
+                <div v-if="item.mindmapData" class="mindmap-container">
+                  <!-- chat: 导图容器由 MindMap 组件按实际内容尺寸撑开，完整显示不裁切 -->
+                  <MindMap :data="item.mindmapData" />
+                </div>
+                <div v-else class="empty-mindmap">
+                  <p>暂无思维导图，点上方「生成思维导图」创建</p>
+                </div>
+              </div>
+            </section>
+
             <section class="overview-relations">
               <div class="overview-section-head">
                 <h3 class="ov-title">知识关联</h3>
@@ -162,32 +189,6 @@
           </section>
 
           <!-- chat: 详情页不再提供子条目的创建、展示或跳转入口，避免在单一知识条目内继续分叉。 -->
-
-          <!-- 思维导图 -->
-          <!-- chats: 把「更新 / 生成思维导图」按钮挪到 <h3> 标题右侧（同一行），与「笔记与编辑」的编辑按钮布局一致 -->
-          <section class="kb-section">
-            <div class="kb-section-head">
-              <h3 class="kb-title">思维导图</h3>
-              <button
-                class="btn-outline kb-head-action"
-                @click="handleGenerateMindmap"
-                :disabled="isGenerating"
-              >
-                {{
-                  isGenerating ? '生成中...' : item.mindmapData ? '更新思维导图' : '生成思维导图'
-                }}
-              </button>
-            </div>
-            <div class="mindmap-panel">
-              <div v-if="item.mindmapData" class="mindmap-container">
-                <!-- chat: 导图容器由 MindMap 组件按实际内容尺寸撑开，完整显示不裁切 -->
-                <MindMap :data="item.mindmapData" />
-              </div>
-              <div v-else class="empty-mindmap">
-                <p>暂无思维导图，点右上角「生成思维导图」创建</p>
-              </div>
-            </div>
-          </section>
         </div>
 
         <!-- chats: 关系 tab（第一版手动关联，无 AI） -->

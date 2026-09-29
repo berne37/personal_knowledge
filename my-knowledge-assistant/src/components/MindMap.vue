@@ -158,6 +158,11 @@ onBeforeUnmount(() => {
    （用 justify-content: center 会在大图时把左侧滚出可视区，永远滚不回来）。 */
 .mindmap-wrapper {
   width: max-content;
+  /* 🔧 修复：外层（.mindmap-panel:has）也是 max-content 收缩布局，两层 max-content
+     相互参照时，内部 width:100% 的容器按「空内容」算出 0 宽——组件「没尺寸不渲染、
+     等 ResizeObserver」就永远等不到尺寸，导图静默不出现。min-width:100% 保证初始
+     至少撑满外层拿到尺寸渲染起来，渲染后 adaptToContent 会按内容改写实际宽度。 */
+  min-width: 100%;
   margin: auto;
   min-height: 300px;
 }
