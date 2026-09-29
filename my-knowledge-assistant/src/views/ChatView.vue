@@ -143,8 +143,7 @@ function scrollToBottom() {
   display: flex;
   flex-direction: column;
   height: calc(100vh - 140px);
-  max-width: 800px;
-  margin: 0 auto;
+  /* 🔧 去掉 max-width + margin:auto，让聊天框铺满内容区，不再居中留两侧空白 */
 }
 
 .message-list {

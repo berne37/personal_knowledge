@@ -4,6 +4,9 @@ import { ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import { FileText, FolderKanban, Library, MessageSquare, Network, Settings } from 'lucide-vue-next'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
+import { useRoute } from 'vue-router'
+const route = useRoute()
+
 
 // 菜单是静态数据，永远不会变，所以用普通常量而不是 ref。
 // 另外 ref 会把数组元素深包装成 reactive proxy，图标组件对象被包住后渲染多绕一层，没必要。
@@ -39,7 +42,7 @@ const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
       </div>
     </nav>
 
-    <main class="content">
+    <main class="content" :class="{ 'content--flush': route.path === '/chat' }">
       <RouterView />
     </main>
   </div>
@@ -137,5 +140,8 @@ li:has(.router-link-exact-active) {
   flex: 1;
   min-width: 0;
   padding: var(--spacing-xl);
+}
+.content--flush {
+  padding: var(--spacing-xl); /* 让聊天页内容区铺满，不留两侧空白 */
 }
 </style>
