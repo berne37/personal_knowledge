@@ -1,45 +1,9 @@
 <template>
   <div>
+    <!-- chats: 顶栏改版——标题/搜索/筛选/新建挤一行；总览挪成下方独立统计卡片 -->
     <div class="header">
-      <!-- chats: 总览放进标题行——标题和总览是一组「页面是什么 + 现在有多少」的信息，
-           添加按钮留在最右，左右分组用 space-between 拉开 -->
-      <div class="header-left">
-        <h2>知识库管理</h2>
-        <div v-if="stats.total > 0" class="overview">
-          <div class="ov-total">
-            <span class="ov-num">{{ stats.total }}</span>
-            <span class="ov-label">条目总数</span>
-          </div>
-          <div class="ov-right">
-            <div class="ov-bar">
-              <span v-if="stats.done" class="seg seg-done" :style="{ width: ratios.done }"></span>
-              <span
-                v-if="stats.learning"
-                class="seg seg-learning"
-                :style="{ width: ratios.learning }"
-              ></span>
-              <span v-if="stats.todo" class="seg seg-todo" :style="{ width: ratios.todo }"></span>
-            </div>
-            <div class="ov-legend">
-              <span class="ov-lg">
-                <span class="dot dot-done"></span>已学会 <b>{{ stats.done }}</b>
-              </span>
-              <span class="ov-lg">
-                <span class="dot dot-learning"></span>学习中 <b>{{ stats.learning }}</b>
-              </span>
-              <span class="ov-lg">
-                <span class="dot dot-todo"></span>待学习 <b>{{ stats.todo }}</b>
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-      <button class="btn btn-primary" @click="showAddModal = true">＋ 添加知识库</button>
-    </div>
-
-    <!-- 搜索 + 筛选栏 -->
-    <div class="toolbar">
-      <input v-model="searchKeyword" class="search-input" placeholder="搜索知识库..." />
+      <h2>知识库</h2>
+      <input v-model="searchKeyword" class="search-input" placeholder="搜索知识条目..." />
       <div class="filter-group">
         <button
           v-for="opt in filterOptions"
@@ -51,7 +15,18 @@
           {{ opt.label }}
         </button>
       </div>
-      <span class="result-count">共 {{ filteredItems.length }} 条</span>
+      <button class="btn btn-primary add-btn" @click="showAddModal = true">＋ 新建条目</button>
+    </div>
+
+    <!-- 总览统计卡片：大数字 + 分类计数 -->
+    <div v-if="stats.total > 0" class="stats-card">
+      <div class="stats-num">{{ stats.total }}</div>
+      <div class="stats-meta">
+        <div class="stats-title">共 {{ stats.total }} 个条目</div>
+        <div class="stats-legend">
+          已学会 {{ stats.done }} · 学习中 {{ stats.learning }} · 待学习 {{ stats.todo }}
+        </div>
+      </div>
     </div>
 
     <!-- 列表 -->
@@ -117,16 +92,6 @@ const stats = computed(() => {
   }
 })
 
-// 堆叠比例条的宽度百分比。total 为 0 时用 1 兜底，避免除零得到 NaN%（外层 v-if 已挡住这种情况，这里只是防御）
-const ratios = computed(() => {
-  const total = stats.value.total || 1
-  return {
-    done: `${(stats.value.done / total) * 100}%`,
-    learning: `${(stats.value.learning / total) * 100}%`,
-    todo: `${(stats.value.todo / total) * 100}%`,
-  }
-})
-
 // 过滤后的列表
 const filteredItems = computed(() => {
   let items = store.items
@@ -176,26 +141,21 @@ function goToDetail(item: KnowledgeItem) {
 </script>
 
 <style scoped>
+/* chats: 顶栏改版——标题/搜索/筛选/新建一行，总览挪成下方独立统计卡片 */
 .header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-md);
-}
-
-.toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
-  padding: var(--spacing-md);
-  background: var(--color-bg);
-  border-radius: var(--radius-md);
+}
+
+.header h2 {
+  margin-right: var(--spacing-xs);
 }
 
 .search-input {
-  flex: 1;
+  flex: 0 1 260px;
   min-width: 180px;
   padding: var(--spacing-sm) var(--spacing-md);
   border: 1px solid var(--color-border);
@@ -208,22 +168,19 @@ function goToDetail(item: KnowledgeItem) {
   outline: none;
 }
 
-/* chats: 卡片化改版——4 个筛选按钮原先各自带边框，与搜索框挨在一起时「框太多」。
-   改成分段控件（segmented control）：整组共用一个外框，只有选中项有实心底色。 */
+/* chats: 筛选从分段控件改回独立 chip——每个按钮自带边框，
+   选中项描蓝边 + 浅蓝底（跟截图一致），不再整组共用外框 */
 .filter-group {
   display: flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--color-bg-white);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
 }
 
 .filter-btn {
-  padding: 4px 14px;
-  border: none;
+  padding: 5px 14px;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--color-bg-white);
   color: var(--color-text-secondary);
   cursor: pointer;
   font-size: var(--font-size-sm);
@@ -231,127 +188,50 @@ function goToDetail(item: KnowledgeItem) {
 }
 .filter-btn:hover {
   color: var(--color-text);
+  border-color: var(--color-text-light);
 }
 .filter-btn.active {
-  background: var(--color-primary);
-  color: #fff;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-primary-light);
 }
 
-.result-count {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-placeholder);
+.add-btn {
   margin-left: auto;
 }
 
-/* ===== chats: 列表页总览 ===== */
-/* inline-flex → 整块宽度由内容决定（不再撑满整行）。
-   比例条的宽度从这里来：ov-right 没有 flex:1，宽度取「图例文字」的 max-content，
-   条子写 width:100% 就正好等于图例那行的宽度。 */
-/* chats: 标题 + 总览一组靠左，添加按钮靠右 */
-.header-left {
+/* ===== chats: 总览统计卡片 ===== */
+.stats-card {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--spacing-md) var(--spacing-lg);
-  /* 总览是 inline-flex 只占内容宽度，min-width:0 防止它在窄屏把右侧按钮挤出去 */
-  min-width: 0;
-}
-
-.overview {
-  display: inline-flex;
   align-items: center;
   gap: var(--spacing-lg);
-  max-width: 100%;
-  padding: 6px var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
   background: var(--color-bg-white);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
 
-.ov-total {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
+/* 注意 global.css 的 `* { font-weight: normal }`：数字和「共 N 个」的 600 必须显式写 */
+.stats-num {
+  font-size: 34px;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--color-text);
   padding-right: var(--spacing-lg);
   border-right: 1px solid var(--color-border-light);
 }
 
-/* 注意 global.css 的 `* { font-weight: normal }`：大数字的 600 必须显式写。
-   22px 而不是原来的 28px——挪进标题行后，数字不能比 h2 的标题还抢眼 */
-.ov-num {
-  font-size: 22px;
+.stats-title {
+  font-size: var(--font-size-md);
   font-weight: 600;
-  line-height: 1.1;
   color: var(--color-text);
+  margin-bottom: 2px;
 }
 
-.ov-label {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-placeholder);
-}
-
-.ov-right {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.ov-bar {
-  display: flex;
-  width: 100%;
-  height: 8px;
-  border-radius: var(--radius-full);
-  overflow: hidden;
-  background: var(--color-border-light);
-}
-.ov-bar .seg {
-  display: block;
-  height: 100%;
-  transition: width var(--transition-normal);
-}
-.seg-done {
-  background: var(--color-success);
-}
-.seg-learning {
-  background: var(--color-warning);
-}
-/* 待学习用中性灰而不是 danger 红：红色在这样一条长色带上太刺眼，
-   而且「还没开始学」不是错误状态，不值得用警示色 */
-.seg-todo {
-  background: var(--status-pending);
-}
-
-.ov-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-md);
-  font-size: var(--font-size-xs);
+.stats-legend {
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
-}
-.ov-lg {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.ov-lg b {
-  font-weight: 600;
-  color: var(--color-text);
-}
-
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.dot-done {
-  background: var(--color-success);
-}
-.dot-learning {
-  background: var(--color-warning);
-}
-.dot-todo {
-  background: var(--status-pending);
 }
 
 .modal-overlay {

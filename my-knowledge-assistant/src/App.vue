@@ -142,6 +142,6 @@ li:has(.router-link-exact-active) {
   padding: var(--spacing-xl);
 }
 .content--flush {
-  padding: var(--spacing-xl); /* 让聊天页内容区铺满，不留两侧空白 */
+  padding: 0; /* 聊天页自己管理内边距：标题栏和输入条要顶格贴边，不能带着内容区的灰边悬浮 */
 }
 </style>

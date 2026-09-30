@@ -1,8 +1,11 @@
 <template>
   <!-- 🔧 修复：根类名原为 project-view，样式定义的却是 .projects-view，导致限宽居中规则从未生效 -->
   <div class="projects-view">
-    <h2>项目进度管理</h2>
-    <button class="btn-primary" @click="showCreateModel = true">+ 新建项目</button>
+    <!-- chats: 标题 + 新建按钮包进 .header（样式里 space-between 早就写好了，之前模板没套上所以按钮挤在标题下面），与知识库/思维导图页统一 -->
+    <div class="header">
+      <h2>项目进度管理</h2>
+      <button class="btn-primary" @click="showCreateModel = true">+ 新建项目</button>
+    </div>
   </div>
 
   <!-- 创建项目弹窗 -->
@@ -51,9 +54,7 @@
       <!-- 展开详情 -->
       <div v-if="expandedId === project.id" class="card-details">
         <p class="desc">{{ project.description || '无描述' }}</p>
-        <p class="deadline" v-if="project.deadline">
-          截止日期: {{ new Date(project.deadline).toLocaleDateString() }}
-        </p>
+        <p class="deadline" v-if="project.deadline">截止日期: {{ formatDate(project.deadline) }}</p>
 
         <!-- 节点列表 -->
         <div class="nodes-section">
@@ -106,6 +107,8 @@ import { ref, onMounted } from 'vue'
 import { useProjectStore } from '@/stores/projectStore'
 import type { ProjectNode } from '@/types'
 import NodeItem from '@/components/NodeItem.vue'
+// chats: 截止日期格式化统一走 utils（原先模板里内联 toLocaleDateString，没兜底也不带 locale）
+import { formatDate } from '@/utils/date'
 
 const store = useProjectStore()
 
@@ -286,6 +289,11 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
+}
+
+/* chats: header 里按钮的上下外边距会破坏垂直居中，归零交给 flex 对齐 */
+.header .btn-primary {
+  margin: 0;
 }
 
 .btn-primary {

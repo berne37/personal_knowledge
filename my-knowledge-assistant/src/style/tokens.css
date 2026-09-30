@@ -5,17 +5,17 @@
 
    :root {
     /* ---------- 品牌色 ---------- */
-    --color-primary: #42b983;
-    --color-primary-hover: #3aa876;
-    --color-primary-light: #e6f7ed;
-    --color-primary-dark: #2d8f66;
+    --color-primary: #3b82f6;
+    --color-primary-hover: #2563eb;
+    --color-primary-light: #eff6ff;
+    --color-primary-dark: #1d4ed8;
 
      /* ---------- 中性色 ---------- */
     --color-bg: #f0f2f5;
     --color-bg-white: #ffffff;
     --color-bg-card: #ffffff;
     --color-bg-hover: #f5f7fa;
-    --color-bg-primary: #e6f7ed;
+    --color-bg-primary: #eff6ff;
 
     --color-text: #2c3e50;
     --color-text-secondary: #606266;

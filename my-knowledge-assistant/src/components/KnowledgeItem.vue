@@ -60,6 +60,7 @@ import type { KnowledgeItem } from '@/types'
 import { computed, ref } from 'vue'
 import { ChevronRight } from 'lucide-vue-next'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
+import { formatDate } from '@/utils/date'
 
 const store = useKnowledgeStore()
 
@@ -131,12 +132,7 @@ function handleGoDetail() {
   emit('go-detail', props.item)
 }
 
-// TODO: 详情页 KnowledgeDetailView.vue 里有一份一模一样的 formatDate，
-// 后续可以抽到 src/utils/date.ts 统一复用，避免两处各改各的。
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('zh-CN')
-}
+// chats: formatDate 抽到 src/utils/date.ts 统一维护（原先这里和详情页各有一份一模一样的实现）
 </script>
 
 <style scoped>

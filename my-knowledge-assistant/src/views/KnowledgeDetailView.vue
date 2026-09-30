@@ -475,6 +475,8 @@ import { useProjectStore } from '@/stores/projectStore'
 import type { Attachment, KnowledgeItem } from '@/types'
 import MindMap from '@/components/MindMap.vue'
 import { generateMindMapWithAI } from '@/services/mindMap'
+// chats: formatDate 抽到 src/utils/date.ts 统一维护（原先这里和列表项组件各有一份一模一样的实现）
+import { formatDate } from '@/utils/date'
 // chats: 关系四组的方向图标（前置=上游 / 相关=平行 / 资料=材料 / 项目=落地），
 // 用图标区分四张卡的角色，比再写一行说明字更省地方，也和侧边栏同一套图标语言
 import { ArrowLeftRight, ArrowUp, FileText, FolderKanban } from 'lucide-vue-next'
@@ -781,11 +783,6 @@ function goBack() {
   }
 }
 
-function formatDate(dateStr: string): string {
-  if (!dateStr) return ''
-  return new Date(dateStr).toLocaleDateString('zh-CN')
-}
-
 // ===== 附件操作 =====
 function triggerFilePicker() {
   fileInput.value?.click()
@@ -1065,42 +1062,7 @@ watch(
    绿色「添加」「上传附件」「生成思维导图」「阅读」），一屏里能同时出现三四种颜色，
    抢掉了内容本身。现在统一成一个中性描边按钮：白底 + 细边 + 深色文字，
    主次只靠文案和位置区分。要强调时把 border-color 加深一点就够，不必上色。
-   TODO: 如果其它页面也要用，可以把它提升到 style/global.css 做公共按钮类。 */
-.btn-outline {
-  padding: 6px 14px;
-  background: var(--color-bg-white);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.btn-outline:hover {
-  background: var(--color-bg-hover);
-  border-color: var(--color-divider);
-}
-/* chats: 编辑态的主操作。用户此前定的是「尽量不要有颜色的按钮」，
-   所以这里不做彩色实心，改用「深色实心 vs 描边」这个中性对比来分主次——
-   否则「保存」「取消」并排两个一模一样的描边按钮，看不出该点哪个。 */
-.btn-outline.btn-solid {
-  background: var(--color-text);
-  border-color: var(--color-text);
-  color: var(--color-bg-white);
-}
-.btn-outline.btn-solid:hover {
-  background: var(--color-text-secondary);
-  border-color: var(--color-text-secondary);
-}
-/* 标题为空时保存按钮置灰。原来点了会 alert('标题不能为空')，用禁用代替弹窗；
-   这条要写在 .btn-solid 之后，禁用态才能把深色实心盖回白底。 */
-.btn-outline:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  background: var(--color-bg-white);
-  border-color: var(--color-border);
-  color: var(--color-text);
-}
+   按钮本体已提升到 style/global.css（.btn-outline），其它页面也能用。 */
 
 /* chats: 就地编辑控件（标题 / 描述共用）。
    ① 只声明 font-family: inherit，字体细节一律让外层的常态类说了算 ——
@@ -1340,7 +1302,7 @@ watch(
   font-size: var(--font-size-xs);
 }
 
-/* ===== 关系（chats）===== */
+/* ===== chats: 关系 ===== */
 /* chats: 左「中心锚点」+ 右「四组」两栏。两栏之间用左栏的 border-right 拉一条竖导轨，
    右侧四组看起来才是接在左边这个中心上的，而不是四个并排的盒子。
    窄屏由文件末尾的媒体查询叠成单列。 */

@@ -82,6 +82,40 @@ body {
 .btn-danger:hover {
   background: #c0392b;
 }
+/* chats: 中性描边按钮——从 KnowledgeDetailView 的 scoped 样式提升为全局公共类。
+   设计约定是「尽量不要有颜色的按钮」：白底 + 细边 + 深色文字，主次靠文案和位置区分；
+   要强调时叠加 .btn-solid 用「深色实心 vs 描边」做中性对比，不上彩色。 */
+.btn-outline {
+  padding: 6px 14px;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.btn-outline:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-divider);
+}
+.btn-outline.btn-solid {
+  background: var(--color-text);
+  border-color: var(--color-text);
+  color: var(--color-bg-white);
+}
+.btn-outline.btn-solid:hover {
+  background: var(--color-text-secondary);
+  border-color: var(--color-text-secondary);
+}
+/* 禁用态写在 .btn-solid 之后，才能把深色实心盖回白底 */
+.btn-outline:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: var(--color-bg-white);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
 .btn-sm {
   padding: 4px 12px;
   font-size: var(--font-size-sm);
