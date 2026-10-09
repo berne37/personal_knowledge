@@ -41,21 +41,16 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       //   DataCloneError（#<Object> could not be cloned）。赋值给 items.value 之后再交给 Vue 自动包 reactive。
       const allItems = await db.getAll('items')
 
-      // 老数据的子条目没有 id，递归补一个并写回数据库
+      // chats: 子条目已下线——老数据里残留的 children 数组在加载时顺手清掉并回写，
+      // 这就是「删不干净」的自动清理：不需要用户手动跑脚本
       let changed = false
-      function fillId(nodes: KnowledgeItem[]) {
-        for (const node of nodes) {
-          if (node.id == null) {
-            node.id = Date.now() + Math.floor(Math.random() * 1000)
-            changed = true
-          }
-          if (node.children?.length) fillId(node.children)
-        }
+      for (const item of allItems) {
+        if (item.children?.length) changed = true
+        delete item.children
       }
-      for (const item of allItems) fillId(item.children || [])
       // chats: put 的是 plain 的 allItems（含 FileSystemFileHandle 等可被结构化克隆的原生对象），不再过 reactive
       if (changed) {
-        for (const root of allItems) await db.put('items', root)
+        for (const item of allItems) await db.put('items', item)
       }
 
       items.value = allItems
@@ -67,45 +62,18 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     return loadItemsPromise
   }
 
-  // 添加根条目
+  // 添加条目
   async function addItem(
-    item: Omit<KnowledgeItem, 'id' | 'createdAt' | 'updatedAt' | 'children' | 'attachments'>,
+    item: Omit<KnowledgeItem, 'id' | 'createdAt' | 'updatedAt' | 'attachments'>,
   ) {
     const db = await dbPromise
     const newItem: KnowledgeItem = {
       ...item,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      children: [],
       attachments: [],
     }
     await db.add('items', newItem)
-    await loadItems()
-  }
-
-  // 添加子条目
-  async function addChildItem(
-    parentId: number,
-    childData: Omit<KnowledgeItem, 'id' | 'createdAt' | 'updatedAt' | 'children' | 'attachments'>,
-  ) {
-    const db = await dbPromise
-    const parent = await db.get('items', parentId)
-    if (!parent) return
-
-    const newChild: KnowledgeItem = {
-      id: Date.now() + Math.floor(Math.random() * 1000), // 子条目也要有唯一 id
-      ...childData,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      children: [],
-      attachments: [],
-    }
-
-    if (!parent.children) parent.children = []
-    parent.children.push(newChild)
-    parent.updatedAt = new Date().toISOString()
-
-    await db.put('items', parent)
     await loadItems()
   }
 
@@ -180,138 +148,51 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
 
   //递归查找：按标题找条目
   function findItemByTitle(title: string): KnowledgeItem | null {
-    function search(nodes: KnowledgeItem[]): KnowledgeItem | null {
-      for (const node of nodes) {
-        if (node.title === title) return node
-        if (node.children?.length) {
-          const found = search(node.children)
-          if (found) return found
-        }
-      }
-      return null
-    }
-    return search(items.value)
+    // chats: 子条目已下线，条目就是一层平铺列表，直接 find
+    return items.value.find((node) => node.title === title) ?? null
   }
 
-  // 按 id 查找条目（含子条目）。路由改用 :id 后靠它取数据。
-  //    标题可以重复，id 不会，所以按 id 找才不会跳错条目。
+  // 按 id 查找条目。路由用 :id，标题可以重复、id 不会，所以按 id 才不会跳错条目。
   function findItemById(id: number): KnowledgeItem | null {
-    function search(nodes: KnowledgeItem[]): KnowledgeItem | null {
-      for (const node of nodes) {
-        if (node.id === id) return node
-        if (node.children?.length) {
-          const found = search(node.children)
-          if (found) return found
-        }
-      }
-      return null
-    }
-    return search(items.value)
+    return items.value.find((node) => node.id === id) ?? null
   }
 
-  // 找出某个条目的父条目；顶层条目返回 null（写法参考 projectStore.ts:98 的 findParent）
-  //    递归时把「上一层节点」当作 parent 一路传下去，命中目标就返回它。
-  function findParentOfId(id: number): KnowledgeItem | null {
-    function search(nodes: KnowledgeItem[], parent: KnowledgeItem | null): KnowledgeItem | null {
-      for (const node of nodes) {
-        if (node.id === id) return parent
-        if (node.children?.length) {
-          const found = search(node.children, node)
-          if (found) return found
-        }
-      }
-      return null
-    }
-    return search(items.value, null)
-  }
-
-  // 递归删除条目（含子条目）
-  // chats: 删除时把被删条目（含整棵子树）的 id 收集起来，删完全库扫一遍，
-  // 把其它条目里指向这些 id 的 前置/相关 引用一并剔除——否则会留下「未知条目(#n)」
-  // 的幽灵关联。反向的「依赖我的」是读取时动态遍历算出来的，条目没了自然消失；
-  // 正向的声明存在对方身上，必须在这里显式清理。
-  function collectIds(node: KnowledgeItem, acc: number[]) {
-    if (node.id != null) acc.push(node.id)
-    for (const child of node.children || []) collectIds(child, acc)
-  }
-
+  // chats: 删除条目——子条目已下线，没有子树要收集，但仍然扫全库剔除
+  // 其它条目指向它的 前置/相关 引用，否则会留下「未知条目(#n)」的幽灵关联。
+  // 反向的「依赖我的」是读取时动态遍历算出来的，条目没了自然消失。
   async function cleanupGhostRefs(removedIds: number[]) {
     if (!removedIds.length) return
     const db = await dbPromise
     const allItems = await db.getAll('items')
-    for (const rootItem of allItems) {
+    for (const item of allItems) {
       let isDirty = false
-      // 🔧 修复：只扫根条目顶层会漏掉子条目里的声明，递归整棵树
-      function sweep(nodes: KnowledgeItem[]) {
-        for (const node of nodes) {
-          const pre = node.prerequisites
-          if (pre?.length) {
-            const filtered = pre.filter((rid) => !removedIds.includes(rid))
-            if (filtered.length !== pre.length) {
-              node.prerequisites = filtered
-              isDirty = true
-            }
-          }
-          const rel = node.relatedKnowledge
-          if (rel?.length) {
-            const filtered = rel.filter((rid) => !removedIds.includes(rid))
-            if (filtered.length !== rel.length) {
-              node.relatedKnowledge = filtered
-              isDirty = true
-            }
-          }
-          if (node.children?.length) sweep(node.children)
+      const pre = item.prerequisites
+      if (pre?.length) {
+        // 🔧 db.getAll 拿的是无类型记录，pre 是 any，参数必须显式标 number，否则隐式 any 报错
+        const filtered = pre.filter((rid: number) => !removedIds.includes(rid))
+        if (filtered.length !== pre.length) {
+          item.prerequisites = filtered
+          isDirty = true
         }
       }
-      sweep([rootItem])
-      // 有改动才回写；注意关系可能声明在子条目上，必须回写整棵根条目
-      if (isDirty) await db.put('items', rootItem)
+      const rel = item.relatedKnowledge
+      if (rel?.length) {
+        const filtered = rel.filter((rid: number) => !removedIds.includes(rid))
+        if (filtered.length !== rel.length) {
+          item.relatedKnowledge = filtered
+          isDirty = true
+        }
+      }
+      if (isDirty) await db.put('items', item)
     }
   }
 
   async function deleteItem(id: number) {
     if (id == null) return // 防止删错条目
     const db = await dbPromise
-    // 用局部数组收集，避免挂在 store 作用域上中途抛错残留脏 id
-    const removedIds: number[] = []
-
-    // 先检查是否是根条目
-    const root = await db.get('items', id)
-    if (root) {
-      collectIds(root, removedIds)
-      await db.delete('items', id)
-      await cleanupGhostRefs(removedIds)
-      await loadItems()
-      return
-    }
-
-    // 在所有根条目中递归查找并删除子条目
-    const allItems = await db.getAll('items')
-
-    function findAndDelete(nodes: KnowledgeItem[]): KnowledgeItem | null {
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i]! // 非空断言（索引保证存在）
-        if (node.id === id) {
-          return nodes.splice(i, 1)[0] ?? null
-        }
-        if (node.children?.length) {
-          const found = findAndDelete(node.children)
-          if (found) return found
-        }
-      }
-      return null
-    }
-
-    for (const item of allItems) {
-      const removed = findAndDelete([item])
-      if (removed) {
-        collectIds(removed, removedIds)
-        await db.put('items', item)
-        await cleanupGhostRefs(removedIds)
-        await loadItems()
-        return
-      }
-    }
+    await db.delete('items', id)
+    await cleanupGhostRefs([id])
+    await loadItems()
   }
 
   // 更新条目（递归查找）
@@ -327,57 +208,16 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
         .map(([key, value]) => [key, stripProxy(value)]),
     ) as Partial<KnowledgeItem>
 
-    // 先检查是否是根条目
+    // chats: 子条目已下线，条目只有一层，按 id 直接取直改
     const root = await db.get('items', id)
-    if (root) {
-      const updated: KnowledgeItem = {
-        ...root,
-        ...plainData,
-        updatedAt: new Date().toISOString(),
-      }
-      await db.put('items', updated)
-      await loadItems()
-      return
+    if (!root) return
+    const updated: KnowledgeItem = {
+      ...root,
+      ...plainData,
+      updatedAt: new Date().toISOString(),
     }
-
-    // 在所有根条目中递归查找并更新子条目
-    const allItems = await db.getAll('items')
-
-    function findAndUpdate(nodes: KnowledgeItem[]): boolean {
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i]!
-        if (node.id === id) {
-          const updatedNode: KnowledgeItem = {
-            ...node,
-            ...plainData,
-            updatedAt: new Date().toISOString(),
-          }
-          nodes[i] = updatedNode
-          return true
-        }
-        if (node.children?.length) {
-          if (findAndUpdate(node.children)) return true
-        }
-      }
-      return false
-    }
-
-    for (const item of allItems) {
-      if (findAndUpdate([item])) {
-        await db.put('items', item)
-        await loadItems()
-        return
-      }
-    }
-  }
-
-  // 计算子条目总数（含递归）
-  function countChildren(item: KnowledgeItem): number {
-    let count = item.children?.length || 0
-    for (const child of item.children || []) {
-      count += countChildren(child)
-    }
-    return count
+    await db.put('items', updated)
+    await loadItems()
   }
 
   loadItems()
@@ -386,15 +226,12 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     items,
     loadItems,
     addItem,
-    addChildItem,
     addAttachment,
     addAttachmentByHandle,
     removeAttachment,
     deleteItem,
     updateItem,
-    countChildren,
     findItemByTitle,
     findItemById,
-    findParentOfId,
   }
 })

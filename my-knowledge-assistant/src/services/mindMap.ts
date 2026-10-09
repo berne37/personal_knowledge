@@ -2,7 +2,7 @@ import { streamChat, type ChatMessage } from './ai'
 import { resolveAiConfig } from './aiConfig'
 import type { KnowledgeItem } from '@/types'
 
-//思维导图节点类型
+// 思维导图节点类型
 export interface MindMapNode {
   data: {
     text: string
@@ -13,13 +13,15 @@ export interface MindMapNode {
 /**
  * 生成导图的「素材」类型。
  *
- * 为什么用 Pick 而不是直接用 KnowledgeItem：
- * 画导图只需要标题、描述、掌握程度、子条目这四样。
- * 用 Pick 做最小约束后，思维导图页就能直接传一个「虚拟根节点」
- * （比如 { title: '我的知识库', children: store.items }），
- * 不用为了凑类型去伪造 id / createdAt / updatedAt 这些跟画图无关的字段。
+ * chats: 子条目已下线——单个条目的素材就是 标题/描述/掌握程度/笔记，
+ * 树形的下一级由笔记承载（buildKnowledgeText 会把笔记按行拆成子节点素材）。
+ * items 仅全库导图使用：把全部条目当作虚拟根的下一级喂给 AI，
+ * 与知识条目的数据模型无关（不需要伪造 id / createdAt 等字段）。
  */
-export type MindMapSource = Pick<KnowledgeItem, 'title' | 'description' | 'level' | 'children'>
+export type MindMapSource = Pick<KnowledgeItem, 'title' | 'description' | 'level'> & {
+  notes?: string
+  items?: MindMapSource[]
+}
 
 /**
  * 把条目树拍平成带缩进的文本。
@@ -36,19 +38,34 @@ export type MindMapSource = Pick<KnowledgeItem, 'title' | 'description' | 'level
 function buildKnowledgeText(node: MindMapSource, depth = 0): string {
   const indent = '  '.repeat(depth)
   const desc = node.description ? `：${node.description}` : ''
-  let text = `${indent}- ${node.title}${desc}（掌握程度：${node.level}）\n`
+  let text = `${indent}- ${node.title}${desc}${node.level ? `（掌握程度：${node.level}）` : ''}\n`
 
-  for (const child of node.children || []) {
+  // chats: 子条目下线后，树形的下一级就是笔记——按行拆成子弹点（截行数/截长防 token 爆炸），
+  // AI 依据这些笔记行组织导图层级，不再凭标题编内容
+  if (node.notes?.trim()) {
+    const noteLines = node.notes
+      .trim()
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 15)
+    for (const line of noteLines) {
+      text += `${indent}  - 笔记：${line.slice(0, 200)}\n`
+    }
+  }
+
+  // 仅全库导图使用：把全部条目当作虚拟根的下一级
+  for (const child of node.items || []) {
     text += buildKnowledgeText(child, depth + 1)
   }
   return text
 }
 
 /**
- * 数整棵树有多少个节点（含自己），用来判断「有没有子条目」
+ * 数素材里有多少个条目（仅全库视图用到 items）
  */
 function countNodes(node: MindMapSource): number {
-  return 1 + (node.children || []).reduce((sum, child) => sum + countNodes(child), 0)
+  return 1 + (node.items || []).reduce((sum, child) => sum + countNodes(child), 0)
 }
 
 /**
@@ -71,11 +88,16 @@ export async function generateMindMapWithAI(
     return
   }
 
-  // 构建素材文本（当前条目 + 所有后代，用缩进表达层级）
-  const knowledgeText = buildKnowledgeText(source)
+  // chats: 子条目下线后，「有料」= 有描述、有笔记，或（全库视图）挂了条目
+  const hasItems = countNodes(source) > 1
+  const hasSource = Boolean(source.description?.trim() || source.notes?.trim()) || hasItems
+  if (!hasSource) {
+    onError?.(new Error('该条目还没有描述或笔记，没有可依据的资料——先补充内容再生成导图'))
+    return
+  }
 
-  // 只有根节点自己 = 这个条目还没有子条目
-  const hasChildren = countNodes(source) > 1
+  // 构建素材文本（当前条目 + 笔记行，或全库条目）
+  const knowledgeText = buildKnowledgeText(source)
 
   // 系统提示词：让 AI 生成树形 JSON
   const systemPrompt: ChatMessage = {
@@ -92,9 +114,9 @@ export async function generateMindMapWithAI(
 }
 2. 根节点的 text 必须是「${source.title}」，一个字都不要改。
 3. ${
-      hasChildren
-        ? '素材中的缩进表示父子层级（缩进越深层级越低）。请保留这种层级关系，并在此基础上补充、整理出更清晰的中间分类。'
-        : `这个条目目前还没有子条目。请你围绕「${source.title}」这个主题，自行展开它的核心知识点，生成 2 到 3 层结构。`
+      hasItems
+        ? '素材中的缩进表示父子层级（缩进越深层级越低）。请保留这种层级关系，并在此基础上整理出更清晰的中间分类；素材中没有的信息不要编造。'
+        : '这个条目的树形下一级就是它的笔记（「笔记：」开头的行）。请把笔记内容组织成 2 到 3 层的结构；素材中没有的信息不要编造。'
     }
 4. 每个叶子节点的文本要包含「名称」和「简要描述」，格式参考「组合式 API：setup 语法糖与响应式 API」。
 5. 只输出 JSON，不要任何解释文字，也不要用 \`\`\` 代码块包裹。

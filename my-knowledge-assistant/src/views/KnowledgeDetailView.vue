@@ -11,12 +11,10 @@
 
     <!-- 主内容 -->
     <div v-else class="detail-content">
-      <!-- ===== 头部信息（只读，编辑挪到「知识」tab） ===== -->
+      <!-- ===== 头部信息（只读，编辑挪到「笔记」tab） ===== -->
       <div class="detail-header">
         <div class="header-top">
-          <button class="back-btn" @click="goBack">
-            ← 返回{{ parentTitle ? ' ' + parentTitle : '知识库' }}
-          </button>
+          <button class="back-btn" @click="goBack">← 返回知识库</button>
           <!-- chats: 编辑入口从「知识」tab 挪到页头。原来它改的是标题 / 状态 / 描述，
                而这三位显示在页头——控件在下面、被改的内容在上面，中间隔着一个 tab，
                改的时候还得抬头看页头有没有变。现在就地编辑：点「编辑」，页头原地变成控件。 -->
@@ -32,42 +30,51 @@
             </template>
           </div>
         </div>
-        <h1 v-if="!isEditing" class="detail-title">{{ item.title }}</h1>
-        <input
-          v-else
-          v-model="editTitle"
-          class="detail-title inline-field"
-          placeholder="标题"
-          @keyup.enter="saveEdit"
-        />
-        <div class="detail-meta">
-          <span v-if="!isEditing" class="level-badge" :class="item.level">{{ item.level }}</span>
-          <!-- chats: 原来这里是个原生 <select>，和常态的「圆点 + 灰字」完全两个样。
-               改成同一套写法的三个选项，选中的那个加深加底，看起来还是「那个状态徽章」。 -->
-          <div v-else class="level-picker">
-            <button
-              v-for="lv in levelOptions"
-              :key="lv"
-              class="level-badge level-opt"
-              :class="[lv, { active: editLevel === lv }]"
-              @click="editLevel = lv"
-            >
-              {{ lv }}
-            </button>
+        <!-- chats: 快捷卡已挪进概览 tab，页头回归纯标题/状态/描述 -->
+        <div class="header-main">
+          <h1 v-if="!isEditing" class="detail-title">{{ item.title }}</h1>
+          <input
+            v-else
+            v-model="editTitle"
+            class="detail-title inline-field"
+            placeholder="标题"
+            @keyup.enter="saveEdit"
+          />
+          <div class="detail-meta">
+            <span v-if="!isEditing" class="level-badge" :class="item.level">{{ item.level }}</span>
+            <!-- chats: 原来这里是个原生 <select>，和常态的「圆点 + 灰字」完全两个样。
+                 改成同一套写法的三个选项，选中的那个加深加底，看起来还是「那个状态徽章」。 -->
+            <div v-else class="level-picker">
+              <button
+                v-for="lv in levelOptions"
+                :key="lv"
+                class="level-badge level-opt"
+                :class="[lv, { active: editLevel === lv }]"
+                @click="editLevel = lv"
+              >
+                {{ lv }}
+              </button>
+            </div>
+            <span class="detail-date">创建于 {{ formatDate(item.createdAt) }}</span>
           </div>
-          <span class="detail-date">创建于 {{ formatDate(item.createdAt) }}</span>
+          <p v-if="!isEditing && item.description" class="detail-desc">
+            {{ item.description }}
+          </p>
+          <!-- chats: 编辑态的描述输入框必须和上面的 v-if 描述段落相邻，v-else-if 才能成立 -->
+          <textarea
+            v-else-if="isEditing"
+            v-model="editDesc"
+            class="detail-desc inline-field"
+            rows="2"
+            placeholder="一句话描述（可选）"
+          ></textarea>
         </div>
-        <p v-if="!isEditing && item.description" class="detail-desc">{{ item.description }}</p>
-        <textarea
-          v-else-if="isEditing"
-          v-model="editDesc"
-          class="detail-desc inline-field"
-          rows="2"
-          placeholder="一句话描述（可选）"
-        ></textarea>
       </div>
 
-      <!-- ===== 导航栏（chats: 四 tab 重构为 概览 | 知识 | 关系 | 资料） ===== -->
+      <!-- chats: 轻量看图器——概览附件卡点缩略图弹出，参照 viewerjs 交互自研 -->
+      <Lightbox :src="lightboxSrc" @close="lightboxSrc = ''" />
+
+      <!-- ===== 导航栏（chats: 四 tab 重构为 概览 | 笔记 | 关系 | 资料） ===== -->
       <div class="tab-nav">
         <button
           v-for="tab in tabs"
@@ -85,21 +92,40 @@
         <!-- chat: 概览只保留学习摘要和下一步入口；标题、状态、简介已在导航上方展示，不再重复。 -->
         <div v-show="activeTab === 'overview'" class="tab-panel">
           <div class="overview-layout">
-            <section class="overview-notes">
-              <div class="overview-section-head">
-                <h3 class="ov-title">知识笔记</h3>
-                <button class="overview-link" @click="activeTab = 'knowledge'">查看全部</button>
+            <!-- chats: 笔记/附件两张卡从页头挪进概览——概览本来就是「一眼看全」的 tab，
+                 卡片放这里比挤在页头更合理。原「知识笔记」标题区、「查看全部」、「N 份资料」
+                 统计卡一并删除：卡片自身已带字数/个数和跳转，不再重复。 -->
+            <div class="overview-cards">
+              <div class="header-card" @click="activeTab = 'knowledge'">
+                <div class="hc-head">
+                  <span class="hc-label">笔记</span>
+                  <span class="hc-count">{{ notesLength }} 字</span>
+                </div>
+                <div v-if="item.notes?.trim()" class="hc-scroll hc-notes">{{ item.notes }}</div>
+                <div v-else class="hc-scroll hc-empty">暂无笔记，去「笔记」tab 记录</div>
               </div>
-              <p v-if="item.notes" class="overview-note">{{ item.notes }}</p>
-              <p v-else class="ov-empty">还没有笔记，去「知识」记录学习内容。</p>
-            </section>
-
-            <section class="overview-resources">
-              <button class="overview-stat" @click="activeTab = 'materials'">
-                <strong>{{ item.attachments?.length || 0 }}</strong>
-                <span>份资料</span>
-              </button>
-            </section>
+              <div class="header-card" @click="activeTab = 'materials'">
+                <div class="hc-head">
+                  <span class="hc-label">附件</span>
+                  <span class="hc-count">{{ item.attachments?.length || 0 }} 个</span>
+                </div>
+                <div v-if="item.attachments?.length" class="hc-scroll hc-atts">
+                  <!-- chats: 图片附件直接出缩略图（点击开灯箱放大），非图片保持文件名 chip。
+                       缩略图 stop 冒泡，避免触发卡片本身的「跳资料 tab」 -->
+                  <template v-for="a in item.attachments" :key="a.id">
+                    <img
+                      v-if="isImageAttachment(a)"
+                      class="hc-thumb"
+                      :src="previewUrls[a.id] || a.data || ''"
+                      :title="a.name"
+                      @click.stop="openLightbox(a)"
+                    />
+                    <span v-else class="hc-att">{{ a.name }}</span>
+                  </template>
+                </div>
+                <div v-else class="hc-scroll hc-empty">暂无附件</div>
+              </div>
+            </div>
 
             <!-- chats: 思维导图放在概览——它是这条知识的结构总览（学了什么、分几块），
                  和笔记摘要同属「看一眼就懂全局」的信息；「知识」tab 因此回归纯笔记业务。
@@ -128,38 +154,8 @@
               </div>
             </section>
 
-            <section class="overview-relations">
-              <div class="overview-section-head">
-                <h3 class="ov-title">知识关联</h3>
-                <button class="overview-link" @click="activeTab = 'relations'">管理关联</button>
-              </div>
-              <div class="relation-summary">
-                <div>
-                  <span class="relation-label">前置知识</span>
-                  <div class="ov-chips">
-                    <span v-for="id in item.prerequisites || []" :key="id" class="ov-chip">{{
-                      knowledgeTitle(id)
-                    }}</span>
-                    <span v-if="!(item.prerequisites && item.prerequisites.length)" class="ov-empty"
-                      >暂无</span
-                    >
-                  </div>
-                </div>
-                <div>
-                  <span class="relation-label">相关知识</span>
-                  <div class="ov-chips">
-                    <span v-for="id in item.relatedKnowledge || []" :key="id" class="ov-chip">{{
-                      knowledgeTitle(id)
-                    }}</span>
-                    <span
-                      v-if="!(item.relatedKnowledge && item.relatedKnowledge.length)"
-                      class="ov-empty"
-                      >暂无</span
-                    >
-                  </div>
-                </div>
-              </div>
-            </section>
+            <!-- chats: 概览不再放「知识关联」快捷区块（前置/相关知识 chips + 管理关联）——
+                 关系的管理和查看都收拢在「关系」tab，概览只留笔记摘要 / 统计 / 思维导图 -->
           </div>
         </div>
 
@@ -474,6 +470,7 @@ import { usePDFStore } from '@/stores/PDFStore'
 import { useProjectStore } from '@/stores/projectStore'
 import type { Attachment, KnowledgeItem } from '@/types'
 import MindMap from '@/components/MindMap.vue'
+import Lightbox from '@/components/Lightbox.vue'
 import { generateMindMapWithAI } from '@/services/mindMap'
 // chats: formatDate 抽到 src/utils/date.ts 统一维护（原先这里和列表项组件各有一份一模一样的实现）
 import { formatDate } from '@/utils/date'
@@ -501,9 +498,9 @@ const previewUrls = ref<Record<string, string>>({})
 // chats: 四 tab 重构
 const tabs = [
   { key: 'overview', label: '概览' },
-  { key: 'knowledge', label: '知识' },
-  { key: 'relations', label: '关系' },
+  { key: 'knowledge', label: '笔记' },
   { key: 'materials', label: '资料' },
+  { key: 'relations', label: '关系' },
 ]
 const activeTab = ref('overview')
 
@@ -576,20 +573,21 @@ function toggleAdd(kind: RelationKind) {
   addingBlock.value = addingBlock.value === kind ? null : kind
 }
 
-// chats: 把知识库树铺平成数组，供「关系」下拉选择（子条目也能被选为前置 / 相关知识）
-function flattenItems(items: KnowledgeItem[]): KnowledgeItem[] {
-  const result: KnowledgeItem[] = []
-  for (const it of items) {
-    result.push(it)
-    if (it.children?.length) result.push(...flattenItems(it.children))
-  }
-  return result
+// chats: 子条目已下线，条目就是一层平铺，关系下拉直接用全库列表
+const otherKnowledgeItems = computed(() => store.items.filter((k) => k.id !== item.value?.id))
+
+// ===== 概览附件卡的图片缩略图 + 灯箱 =====
+// chats: 能当图显示的附件 = 类型是图片 且 拿得到内容（句柄的 blob URL 或 Base64 降级）
+function isImageAttachment(att: Attachment): boolean {
+  return Boolean(att.type?.startsWith('image/') && (previewUrls.value[att.id] || att.data))
 }
 
-// chats: 下拉里排除自己（不能把条目关联到自己）
-const otherKnowledgeItems = computed(() =>
-  flattenItems(store.items).filter((k) => k.id !== item.value?.id),
-)
+function openLightbox(att: Attachment) {
+  const src = previewUrls.value[att.id] || att.data || ''
+  if (src) lightboxSrc.value = src
+}
+
+const lightboxSrc = ref('')
 
 // chats: 关系双向——记录只存在「声明方」身上（A 声明「前置是 B」，这条就只存在 A 里），
 // 所以「谁依赖我」这种反向关系靠反查全库得出来：不改数据结构、不用迁移历史数据、
@@ -597,7 +595,7 @@ const otherKnowledgeItems = computed(() =>
 const prereqInbound = computed(() => {
   const myId = item.value?.id
   if (myId == null) return []
-  return flattenItems(store.items).filter((k) => k.id !== myId && k.prerequisites?.includes(myId))
+  return store.items.filter((k) => k.id !== myId && k.prerequisites?.includes(myId))
 })
 
 // 相关知识在语义上是对称的，所以把「我加它的」和「它加我的」并成一条列表，
@@ -609,7 +607,7 @@ const relatedRows = computed(() => {
   for (const id of relatedKnowledge.value) rows.push({ id, inbound: false })
   const myId = item.value?.id
   if (myId == null) return rows
-  for (const k of flattenItems(store.items)) {
+  for (const k of store.items) {
     if (k.id == null || k.id === myId) continue
     if (!k.relatedKnowledge?.includes(myId)) continue
     if (rows.some((r) => r.id === k.id)) continue
@@ -764,23 +762,9 @@ async function loadItem(showLoading = true) {
   }
 }
 
-// 当前条目的父条目（顶层条目为 null）。放在顶层，模板和 goBack 都能用。
-//    computed = 数据变了自动重算，不用手动刷新。
-const parentItem = computed(() => {
-  if (!item.value) return null
-  return store.findParentOfId(item.value.id!)
-})
-
-// 按钮上显示的父条目名，没有父就显示「知识库」
-const parentTitle = computed(() => parentItem.value?.title || '')
-
+// chats: 子条目已下线，条目都是顶层，返回永远回知识库列表
 function goBack() {
-  // 子条目 → 回到它所属的父知识库；顶层条目 → 回列表
-  if (parentItem.value) {
-    router.push({ name: 'KnowledgeDetail', params: { id: String(parentItem.value.id) } })
-  } else {
-    router.push({ name: 'Knowledge' })
-  }
+  router.push({ name: 'Knowledge' })
 }
 
 // ===== 附件操作 =====
@@ -903,7 +887,8 @@ async function handleGenerateMindmap() {
       },
       (error) => {
         console.error('生成失败:', error)
-        alert('生成思维导图失败，请重试')
+        // chats: 把 service 层给的具体原因（如「条目无资料不可生成」）直接弹给用户，不再是笼统的请重试
+        alert(error.message || '生成思维导图失败，请重试')
         isGenerating.value = false
       },
     )
@@ -976,6 +961,79 @@ watch(
   margin-bottom: var(--spacing-lg);
   padding-bottom: var(--spacing-md);
   border-bottom: 1px solid var(--color-border);
+}
+
+/* chats: 快捷卡（笔记/附件）——点卡片跳到对应 tab，内容 nowrap 横向滚动。
+   卡片放在概览 tab 的 .overview-cards 里平分一行宽度 */
+.header-card {
+  flex: 1;
+  min-width: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+.header-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+.hc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--spacing-xs);
+}
+.hc-label {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+.hc-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+.hc-scroll {
+  overflow-x: auto;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+}
+.hc-notes {
+  line-height: 1.6;
+}
+.hc-atts {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+.hc-att {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+/* chats: 图片附件缩略图——方形小图，点击弹灯箱看大图 */
+.hc-thumb {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: zoom-in;
+  transition: transform 0.15s ease;
+}
+.hc-thumb:hover {
+  transform: scale(1.08);
+}
+.hc-empty {
+  color: var(--color-text-placeholder);
 }
 
 .header-top {
@@ -1158,121 +1216,37 @@ watch(
   padding: var(--spacing-xs) 0;
 }
 
-/* chat: 概览采用「笔记优先、资料与层级次之、关系最后」的三段结构，避免重复头部信息。 */
+/* chat: 概览采用「笔记优先、资料与层级次之」的纵向结构。
+   min-height 让概览至少占满一屏（扣掉页头和 tab 导航的估计高度），
+   剩余空间全部交给末尾的思维导图区（flex: 1），不再留白。 */
 .overview-layout {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  min-height: calc(100vh - 240px);
 }
-.overview-notes,
-.overview-relations {
+/* chat: 思维导图是概览的收尾大块，撑满剩余高度 */
+.overview-layout .kb-section:last-child {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
 }
-.overview-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.ov-title {
-  font-size: var(--font-size-md);
-  font-weight: 600;
-  margin: 0;
-  color: var(--color-text);
-}
-.ov-empty {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-placeholder);
-}
-.overview-note {
-  margin: 0;
-  color: var(--color-text-secondary);
-  line-height: 1.8;
-  white-space: pre-wrap;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
-  overflow: hidden;
-}
-.overview-link {
-  padding: 0;
-  color: var(--color-primary);
-  background: none;
-  border: none;
-  font: inherit;
-  font-size: var(--font-size-sm);
-  cursor: pointer;
-}
-.overview-link:hover {
-  text-decoration: underline;
-}
-/* chats: 原来这里是个 grid 单列，那个「N 份资料」格子会横着占满整行，
-   一个数字配一大片留白。现在改成内容宽度的横排小片，跳去「资料」tab 的入口。 */
-.overview-resources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-sm);
-}
-.overview-stat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 8px 14px;
-  color: var(--color-text);
-  text-align: left;
-  background: var(--color-bg-white);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.overview-stat:hover {
-  background: var(--color-bg-hover);
-  border-color: var(--color-divider);
-}
-/* font-weight 必须显式写：global.css 的 `* { font-weight: normal }` 会压掉 strong 的默认加粗 */
-.overview-stat strong {
-  font-size: var(--font-size-lg);
-  font-weight: 600;
-  line-height: 1;
-}
-.overview-stat span {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-}
-.ov-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-xs);
-}
-.ov-chip {
-  padding: 4px 12px;
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  font-size: var(--font-size-sm);
-}
-.relation-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-lg);
-}
-.relation-summary > div {
+.overview-layout .kb-section:last-child .mindmap-panel {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
 }
-.relation-label {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
+/* chats: 概览顶部两张快捷卡平分一行；原「知识笔记」标题区/「查看全部」/
+   「N 份资料」统计卡已删——卡片自带字数/个数和跳转，不重复 */
+.overview-cards {
+  display: flex;
+  gap: var(--spacing-md);
 }
 
-/* chat: 导航下的概览内容在窄屏改为单列，保证关联标签可完整阅读。 */
+/* chat: 导航下的概览内容在窄屏改为单列。 */
 @media (max-width: 640px) {
-  .relation-summary {
-    grid-template-columns: 1fr;
+  .overview-cards {
+    flex-direction: column;
   }
 }
 
@@ -1731,23 +1705,24 @@ watch(
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
-}
-/* chat: 大导图在卡片内滚动查看；容器尺寸由内部 MindMap 按内容撑开（max-content），
-   超出 max-height 的部分纵向滚动，超出宽度的部分横向滚动。
-   display: flex 配合内部 .mindmap-wrapper 的 margin: auto：
-   小图在视口内居中，大图 auto 外边距归零、照常滚动。 */
-.mindmap-container {
-  display: flex;
-  overflow: auto;
-  max-height: 78vh;
+  /* chat: 撑满概览剩余空间；MindMap 内部自己处理平移缩放 */
+  flex: 1;
   min-height: 0;
+}
+/* chats: 导图区域只负责「给一块确定的空间」——平移/缩放全部由 MindMap 组件内部的
+   视图 transform 处理，这里不再滚动（max-content 撑宽的旧方案已随组件重写移除） */
+/* chats: 导图区域只负责「给一块确定的空间」——平移/缩放全部由 MindMap 组件内部的
+   视图 transform 处理。
+   高度用显式 calc 而不是 flex:1 推算：思维导图页（100vh 显式高度）一直正常，
+   详情页之前靠「概览 min-height → kb-section flex:1 → panel flex:1 → container flex:1」
+   层层推算，任何一环推成 0 图就被 overflow:hidden 裁没（表现：不显示）。
+   320 ≈ 页头 + tab 导航 + 区块边距的合计高度。 */
+.mindmap-container {
+  height: calc(100vh - 320px);
+  min-height: 420px;
   background: transparent;
   padding: 0;
-}
-/* chat: 自适应导图允许按实际宽高向外展开，完整展示所有节点。 */
-.mindmap-panel:has(.mindmap-wrapper) {
-  width: max-content;
-  min-width: 100%;
+  overflow: hidden;
 }
 .kb-head-action:disabled {
   opacity: 0.55;

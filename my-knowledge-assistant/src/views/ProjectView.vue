@@ -8,19 +8,31 @@
     </div>
   </div>
 
-  <!-- 创建项目弹窗 -->
-  <div v-if="showCreateModel" class="modal-overlay" @click.self="showCreateModel = false">
-    <div class="modal">
-      <h3>新建项目</h3>
-      <input v-model="newProjectName" placeholder="项目名称" />
-      <textarea v-model="newProjectDesc" placeholder="项目描述可选" rows="3"></textarea>
-      <input type="date" v-model="newProjectDeadline" />
-      <div class="modal-actions">
-        <button class="btn-primary" @click="handleCreateProject">创建</button>
-        <button class="btn-secondary" @click="showCreateModel = false">取消</button>
-      </div>
+  <!-- chats: 创建项目弹窗——外壳换成 BaseModal 统一维护（遮罩/卡片/Esc 关闭），
+       表单字段是项目自己的业务，留在本页 -->
+  <BaseModal v-if="showCreateModel" @close="showCreateModel = false">
+    <h3>新建项目</h3>
+    <input v-model="newProjectName" placeholder="项目名称" />
+    <textarea v-model="newProjectDesc" placeholder="项目描述可选" rows="3"></textarea>
+    <input type="date" v-model="newProjectDeadline" />
+    <div class="modal-actions">
+      <button class="btn-primary" @click="handleCreateProject">创建</button>
+      <button class="btn-secondary" @click="showCreateModel = false">取消</button>
     </div>
-  </div>
+  </BaseModal>
+
+  <!-- chats: 修改项目弹窗——外壳同 BaseModal，字段与新建一致（名称/描述/截止日期），
+       打开时用当前项目回填，保存走 updateProject -->
+  <BaseModal v-if="showEditModel" @close="showEditModel = false">
+    <h3>修改项目</h3>
+    <input v-model="editProjectName" placeholder="项目名称" />
+    <textarea v-model="editProjectDesc" placeholder="项目描述可选" rows="3"></textarea>
+    <input type="date" v-model="editProjectDeadline" />
+    <div class="modal-actions">
+      <button class="btn-primary" @click="handleUpdateProject">保存</button>
+      <button class="btn-secondary" @click="showEditModel = false">取消</button>
+    </div>
+  </BaseModal>
 
   <!-- 项目列表 -->
   <div v-if="store.projects.length === 0" class="empty-state">
@@ -34,8 +46,22 @@
           <h3>{{ project.name }}</h3>
           <span class="node-count">{{ project.nodes.length }} 个节点</span>
         </div>
+        <!-- chats: 描述从展开区挪到头部中段（2026-10-09 用户要求）——
+             占据标题和右侧按钮之间的空白，超长省略，不把头部撑高 -->
+        <p v-if="project.description" class="card-desc">{{ project.description }}</p>
+        <!-- chats: 截止日期挨着简介但独立成元素（用户明确要求不同容器），
+             从展开区挪上来，收起卡片也能看到 -->
+        <span v-if="project.deadline" class="card-deadline">
+          截止日期: {{ formatDate(project.deadline) }}
+        </span>
         <div class="card-actions">
+          <!-- chats: 逾期标签——截止日期过了自动变红显示天数，不再假装是普通日期 -->
+          <span v-if="overdueDays(project)" class="overdue-badge">
+            已逾期 {{ overdueDays(project) }} 天
+          </span>
           <span class="progress-badge">{{ store.getProjectProgress(project) }}%</span>
+          <!-- chats: 修改入口——改名/描述/截止日期共用一个弹窗，.stop 防止触发卡片展开 -->
+          <button class="btn-icon" @click.stop="openEditProject(project)">修改</button>
           <button class="btn-icon" @click.stop="deleteProject(project.id)">删除</button>
           <button class="btn-icon expand-btn" @click.stop="toggleExpand(project.id)">
             {{ expandedId === project.id ? '▲' : '▼' }}
@@ -53,8 +79,48 @@
 
       <!-- 展开详情 -->
       <div v-if="expandedId === project.id" class="card-details">
-        <p class="desc">{{ project.description || '无描述' }}</p>
-        <p class="deadline" v-if="project.deadline">截止日期: {{ formatDate(project.deadline) }}</p>
+        <!-- chats: 描述和截止日期都已挪到卡片头部，展开区只留关联知识和节点列表 -->
+
+        <!-- chats: 项目↔知识库双向联动的反向半边——
+             正向是知识详情页的「相关项目」声明（relatedProjects），反向在这里读取时
+             全库现算：凡是把自己关联到本项目的知识条目都列出来，点 chip 跳知识详情。
+             不在 projectStore 里再存一份知识 id，避免两套关联数据互相打架。 -->
+        <div class="rel-knowledge-section">
+          <!-- chats: 标题行改为「关联知识 + 知识库按钮」，布局对齐节点列表的 nodes-header。
+               按钮点击展开下拉多选面板：勾选 = 把项目 id 写进条目的 relatedProjects（存储单向在知识侧）；
+               「单击直接跳知识库」如何与下拉共存未定，暂未做跳转 -->
+          <div class="rel-knowledge-header">
+            <!-- chats: 原右上角的「知识库」小按钮删掉，展开/收起多选面板的功能
+                 剪给「关联知识」标题本身（用户 2026-10-09 拍板）——
+                 点标题开下拉，之前「跳转 vs 下拉怎么共存」的纠结就此收场 -->
+            <h4 class="rel-knowledge-toggle" @click="togglePicker(project.id)">关联知识</h4>
+          </div>
+          <div v-if="relatedKnowledgeOf(project.id).length" class="rel-knowledge-chips">
+            <RouterLink
+              v-for="k in relatedKnowledgeOf(project.id)"
+              :key="k.id"
+              :to="`/knowledge/${k.id}`"
+              class="rel-knowledge-chip"
+              :title="`${k.title} 的详情页`"
+            >
+              {{ k.title }}
+            </RouterLink>
+          </div>
+          <!-- chats: 多选下拉——数据源是全库扁平化列表，勾选状态实时反映 relatedProjects -->
+          <div v-if="pickerProjectId === project.id" class="rel-knowledge-picker">
+            <p v-if="flatKnowledge.length === 0" class="rel-picker-empty">
+              知识库还是空的，先去知识库页添加条目
+            </p>
+            <label v-for="k in flatKnowledge" :key="k.id" class="rel-picker-row">
+              <input
+                type="checkbox"
+                :checked="k.relatedProjects?.includes(project.id)"
+                @change="toggleProjectLink(k, project.id)"
+              />
+              <span>{{ k.title }}</span>
+            </label>
+          </div>
+        </div>
 
         <!-- 节点列表 -->
         <div class="nodes-section">
@@ -103,14 +169,50 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useProjectStore } from '@/stores/projectStore'
-import type { ProjectNode } from '@/types'
+// chats: 反向联动——扫知识库找「声明了本项目」的条目
+import { useKnowledgeStore } from '@/stores/knowledgeStore'
+import type { Project, ProjectNode, KnowledgeItem } from '@/types'
 import NodeItem from '@/components/NodeItem.vue'
+import BaseModal from '@/components/BaseModal.vue'
 // chats: 截止日期格式化统一走 utils（原先模板里内联 toLocaleDateString，没兜底也不带 locale）
 import { formatDate } from '@/utils/date'
 
 const store = useProjectStore()
+const knowledgeStore = useKnowledgeStore()
+
+// chats: 反向联动读取——遍历全库（含子条目），收集把本项目声明为「相关项目」的知识条目。
+// 声明只存在知识条目身上（relatedProjects），项目侧读取时现算，和详情页「依赖我的」同一思路：
+// 单向存储 + 动态反查，条目删除后这里自动消失，不会有幽灵引用。
+function relatedKnowledgeOf(projectId: string): Array<{ id: number; title: string }> {
+  // chats: 子条目已下线，直接过滤一层列表
+  return knowledgeStore.items
+    .filter((node) => node.id != null && node.relatedProjects?.includes(projectId))
+    .map((node) => ({ id: node.id!, title: node.title }))
+}
+
+// chats: 项目侧正向挂载知识——多选下拉的数据源（全库扁平化，含子条目）与勾选写入。
+// 勾选 = 把项目 id 增/删进条目的 relatedProjects，经 knowledgeStore.updateItem 持久化；
+// 存储仍是单向（知识条目持有声明），项目侧读取继续走 relatedKnowledgeOf 反查，
+// 不在 projectStore 里存知识 id，两套数据打架的老问题不会出现。
+// chats: 子条目已下线，多选下拉的数据源就是全库一层列表
+const flatKnowledge = computed(() => knowledgeStore.items)
+
+// 下拉面板按项目维度开关：展开哪个项目的面板，就只显示哪个项目的勾选状态
+const pickerProjectId = ref<string | null>(null)
+function togglePicker(projectId: string) {
+  pickerProjectId.value = pickerProjectId.value === projectId ? null : projectId
+}
+
+async function toggleProjectLink(item: KnowledgeItem, projectId: string) {
+  if (item.id == null) return // 防止误命中：没有 id 的条目无法持久化
+  const current = item.relatedProjects ?? []
+  const next = current.includes(projectId)
+    ? current.filter((id) => id !== projectId)
+    : [...current, projectId]
+  await knowledgeStore.updateItem(item.id, { relatedProjects: next })
+}
 
 //UI状态
 const expandedId = ref<string | null>(null)
@@ -206,6 +308,39 @@ async function deleteProject(id: string) {
   }
 }
 
+// ---------- 修改项目 ----------
+// chats: 编辑状态独立一套 ref（不复用新建的），打开时用当前项目回填；
+// 只暴露名称/描述/截止日期三个字段，节点内容在节点行里自己管
+const showEditModel = ref(false)
+const editProjectId = ref<string | null>(null)
+const editProjectName = ref('')
+const editProjectDesc = ref('')
+const editProjectDeadline = ref('')
+
+function openEditProject(project: Project) {
+  editProjectId.value = project.id
+  editProjectName.value = project.name
+  // 🔧 description/deadline 在类型上是可选字段（string | undefined），
+  // 回填给 string 类型的 v-model ref 时兜底成空串，否则 tsc 报 TS2322
+  editProjectDesc.value = project.description ?? ''
+  editProjectDeadline.value = project.deadline ?? ''
+  showEditModel.value = true
+}
+
+async function handleUpdateProject() {
+  if (!editProjectId.value) return
+  if (!editProjectName.value.trim()) {
+    alert('请输入项目名称')
+    return
+  }
+  await store.updateProject(editProjectId.value, {
+    name: editProjectName.value.trim(),
+    description: editProjectDesc.value,
+    deadline: editProjectDeadline.value,
+  })
+  showEditModel.value = false
+}
+
 // 状态下拉菜单显示控制
 const statusMenuId = ref<string | null>(null)
 
@@ -232,6 +367,18 @@ async function deleteNode(projectId: string, nodeId: string) {
   if (confirm('确定删除该节点吗？')) {
     await store.deleteNode(projectId, nodeId)
   }
+}
+
+// chats: 逾期标签——截止日期晚于今天就不算（当天23:59前都不算逾期），返回逾期天数；
+// 未设截止日期或未逾期返回 null，模板里 v-if 掉。
+// 用 date-only 比较（两边都归零到 0 点）避免时分秒干扰，86400000 = 一天的毫秒数。
+function overdueDays(project: Project): number | null {
+  if (!project.deadline) return null
+  const deadline = new Date(project.deadline + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diff = Math.round((today.getTime() - deadline.getTime()) / 86400000)
+  return diff > 0 ? diff : null
 }
 
 // ---------- 文件路径处理 ----------
@@ -365,26 +512,7 @@ onMounted(() => {
   white-space: nowrap;
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-.modal {
-  background: var(--color-bg-white);
-  padding: var(--spacing-lg);
-  border-radius: var(--radius-lg);
-  min-width: 400px;
-  max-width: 90%;
-  box-shadow: var(--shadow-xl);
-}
+/* chats: 遮罩与卡片外壳样式已抽到 BaseModal；input/textarea 和按钮组是本页表单自己的样式 */
 .modal input,
 .modal textarea {
   width: 100%;
@@ -437,10 +565,12 @@ onMounted(() => {
   box-shadow: var(--shadow-md);
 }
 
+/* chats: 头部改 gap 布局（2026-10-09 截止日期进头部后共 4 个子元素）：
+   标题/描述/日期按内容靠左排，按钮组 margin-left:auto 吃掉剩余空间靠右 */
 .card-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: var(--spacing-sm);
   cursor: pointer;
 }
 .card-title {
@@ -452,6 +582,25 @@ onMounted(() => {
   margin: 0;
   font-size: var(--font-size-lg);
 }
+/* chats: 头部描述——不占 flex:1 了（会把截止日期推去贴着按钮），
+   按内容收缩、超长省略，min-width:0 允许它被压缩让位 */
+.card-desc {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* chats: 截止日期——独立小字元素，与描述不同容器，不参与收缩 */
+.card-deadline {
+  flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-placeholder);
+  white-space: nowrap;
+}
 .node-count {
   font-size: var(--font-size-xs);
   color: var(--color-text-placeholder);
@@ -460,10 +609,21 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  margin-left: auto; /* 按钮组推到最右，标题/描述/日期按内容靠左 */
 }
 .progress-badge {
   background: var(--color-primary-light);
   color: var(--color-primary);
+  padding: 2px 10px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+}
+
+/* chats: 逾期徽章——浅红底从 --color-danger 用 color-mix 调出来，不写死色值 */
+.overdue-badge {
+  background: color-mix(in srgb, var(--color-danger) 10%, #fff);
+  color: var(--color-danger);
   padding: 2px 10px;
   border-radius: var(--radius-full);
   font-size: var(--font-size-xs);
@@ -492,14 +652,80 @@ onMounted(() => {
   padding-top: var(--spacing-sm);
   border-top: 1px solid var(--color-border-light);
 }
-.desc {
-  color: var(--color-text-secondary);
-  margin: var(--spacing-xs) 0 var(--spacing-sm) 0;
+/* chats: .deadline 样式已随截止日期挪到头部改为 .card-deadline，展开区不再有日期 */
+
+/* chats: 关联知识区（反向联动）——chip 样式与知识详情页的 rel-chip 同语言：
+   浅底 + 细边 + 小圆角，可点击的用主色文字区分于纯展示。
+   标题行复用节点列表的「标题左 + 按钮右」布局 */
+.rel-knowledge-section {
+  margin: 0 0 var(--spacing-md) 0;
 }
-.deadline {
-  font-size: var(--font-size-sm);
+.rel-knowledge-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+.rel-knowledge-header h4 {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 600;
+}
+/* chats: 标题现在身兼开关，得让它看起来能点：hover 变主色 + 下划线 */
+.rel-knowledge-toggle {
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+.rel-knowledge-toggle:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+/* chats: 多选下拉面板——跟在 chip 区下方展开，列表长时内部滚动，
+   不把项目卡片撑到无限高 */
+.rel-knowledge-picker {
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  max-height: 220px;
+  overflow-y: auto;
+}
+.rel-picker-empty {
+  margin: 0;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-xs);
   color: var(--color-text-placeholder);
-  margin: 0 0 var(--spacing-sm) 0;
+}
+.rel-picker-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.rel-picker-row:hover {
+  background: var(--color-bg-hover);
+}
+.rel-knowledge-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+.rel-knowledge-chip {
+  padding: 3px 10px;
+  background: var(--color-primary-light);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  color: var(--color-primary-dark);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+.rel-knowledge-chip:hover {
+  border-color: var(--color-primary);
 }
 
 .nodes-section {

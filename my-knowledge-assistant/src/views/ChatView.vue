@@ -1,7 +1,20 @@
 <template>
   <div class="chat-container">
-    <!-- chats: 仿参考稿改版——顶部标题栏 + 居中对话列 + 底部圆角输入条 -->
-    <div class="chat-header">AI 对话</div>
+    <!-- chats: 仿参考稿改版——顶部标题栏 + 居中对话列 + 底部圆角输入条。
+         标题栏右侧是「聚焦条目」选择器（联动 demo：选中后 AI 的上下文从全库列表
+         换成该条目的详情 + 知识关系 + 附件元数据） -->
+    <div class="chat-header">
+      <span>AI 对话</span>
+      <label class="focus-label">
+        聚焦
+        <select v-model="focusItemId" class="focus-select" :class="{ active: focusItemId !== '' }">
+          <option value="">全部知识库</option>
+          <option v-for="opt in knowledgeOptions" :key="opt.id" :value="opt.id">
+            {{ opt.label }}
+          </option>
+        </select>
+      </label>
+    </div>
 
     <div class="message-list" ref="messageListRef">
       <div class="chat-thread">
@@ -97,10 +110,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, computed, nextTick } from 'vue'
 import { streamChat, type ChatMessage } from '@/services/ai'
 // chats: useKnowledgeStore 的 import 原先写在文件中部，归位到顶部 import 区
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
+// 🔧 修复：buildFocusContext 用了 KnowledgeItem 类型但没导入，vue-tsc 报 TS2304，
+// 后面 map/filter 里的参数跟着变成隐式 any——一个缺导入连锁出三个错
+import type { KnowledgeItem } from '@/types'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -122,6 +138,40 @@ const messageListRef = ref<HTMLElement | null>(null)
 // 知识库数据：sendMessage 时拼进系统提示词，让 AI 基于本地资料作答
 const knowledgeStore = useKnowledgeStore()
 
+// chats: 联动 demo 的「轻量上下文聚焦」——评审结论里「砍范围」的那版：
+// 不做检索架构，只做「选中某个条目时，注入它的详情 + 知识关系 + 附件元数据」。
+// 关系一并注入是「关系数据激活」的第二个消费出口：问一句「这个知识点的前置是什么」
+// 就能看到详情页里手动声明的关系真的参与了 AI 回答。
+const focusItemId = ref<number | ''>('')
+
+// chats: 子条目已下线，下拉选项就是全库一层平铺
+const knowledgeOptions = computed(() =>
+  knowledgeStore.items.filter((k) => k.id != null).map((k) => ({ id: k.id!, label: k.title })),
+)
+
+// 聚焦上下文：详情（笔记截断防 token 爆炸）+ 关系标题 + 附件只给文件名（评审明确：全文塞上下文 = token 爆炸 + 幻觉）
+function buildFocusContext(item: KnowledgeItem): string {
+  const lines: string[] = []
+  lines.push(`【聚焦条目】${item.title}（掌握程度：${item.level}）`)
+  if (item.description) lines.push(`描述：${item.description}`)
+  if (item.notes) {
+    lines.push(
+      `笔记：${item.notes.slice(0, 1500)}${item.notes.length > 1500 ? '…（笔记过长已截断）' : ''}`,
+    )
+  }
+  const pre = (item.prerequisites || [])
+    .map((id) => knowledgeStore.findItemById(id)?.title)
+    .filter(Boolean)
+  if (pre.length) lines.push(`前置知识：${pre.join('、')}`)
+  const rel = (item.relatedKnowledge || [])
+    .map((id) => knowledgeStore.findItemById(id)?.title)
+    .filter(Boolean)
+  if (rel.length) lines.push(`相关知识：${rel.join('、')}`)
+  const atts = (item.attachments || []).map((a) => a.name)
+  if (atts.length) lines.push(`相关附件（仅文件名）：${atts.join('、')}`)
+  return lines.join('\n')
+}
+
 // 当前的 AI 回复消息（用于增量更新）
 let currentAssistantMessage: Message | null = null
 
@@ -140,8 +190,12 @@ async function sendMessage() {
   isLoading.value = true
 
   // 构建知识库上下文
-  const knowledgeContext =
-    knowledgeStore.items.length > 0
+  // chats: 选中聚焦条目时，上下文从「全库一行摘要」换成「该条目详情 + 知识关系」；
+  // 其余条目只保留一行标题清单，让 AI 知道全库还有什么但不必展开（省 token）
+  const focusItem = focusItemId.value !== '' ? knowledgeStore.findItemById(focusItemId.value) : null
+  const knowledgeContext = focusItem
+    ? `用户当前正在学习以下知识条目，请优先基于它及其知识关系回答问题：\n${buildFocusContext(focusItem)}\n\n知识库其它条目一览：${knowledgeStore.items.map((i) => i.title).join('、') || '无'}`
+    : knowledgeStore.items.length > 0
       ? `以下是用户知识库中的内容，请基于这些信息回答问题：\n${knowledgeStore.items
           .map((item) => `- ${item.title}：${item.description}（掌握程度：${item.level}）`)
           .join('\n')}`
@@ -212,6 +266,9 @@ function scrollToBottom() {
 
 /* 顶部标题栏：白底 + 底部细线，顶格通栏（内边距自己给，因为内容区 padding 已归零） */
 .chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-white);
@@ -219,6 +276,50 @@ function scrollToBottom() {
   font-weight: 600;
   color: var(--color-text);
   flex-shrink: 0;
+}
+
+/* chats: 聚焦选择器——label 保持标题的 600 字重会压住下拉框文字，分离处理 */
+.focus-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}
+.focus-select {
+  /* chats: 药丸形下拉——appearance 干掉原生箭头，换成自绘 chevron（data URI，灰色跟随边框色系） */
+  appearance: none;
+  padding: 4px 26px 4px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background-color: var(--color-bg-white);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23888780' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  max-width: 220px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background-color var(--transition-fast);
+}
+.focus-select:hover {
+  background-color: var(--color-bg-hover);
+}
+.focus-select:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+/* chats: 聚焦生效时（没选「全部知识库」）给出着色状态，一眼看出当前不是全库上下文 */
+.focus-select.active {
+  border-color: var(--color-primary);
+  background-color: var(--color-bg-primary);
+  color: var(--color-primary-dark);
 }
 
 .message-list {

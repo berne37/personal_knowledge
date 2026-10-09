@@ -9,10 +9,10 @@
         </button>
       </div>
     </div>
-    
+
     <!-- 使用 store 中的 errorMessage -->
     <div v-if="store.errorMessage" class="error">
-       {{ store.errorMessage }}
+      {{ store.errorMessage }}
     </div>
 
     <!-- 使用 store 中的 mindMapData 和 isLoading -->
@@ -22,9 +22,7 @@
 
     <div v-if="store.isLoading" class="loading">
       <p>AI 正在生成思维导图...</p>
-      <div class="typing-dots">
-        <span></span><span></span><span></span>
-      </div>
+      <div class="typing-dots"><span></span><span></span><span></span></div>
     </div>
 
     <!-- 使用 store 中的 mindMapData -->
@@ -58,14 +56,14 @@ async function generateFromKnowledge() {
       return
     }
 
-    // 全库视图没有天然的「根条目」，所以造一个虚拟根节点把全部根条目包起来。
-    // MindMapSource 只要求 title / description / level / children 四个字段，
-    // 所以不用去伪造 id、createdAt、updatedAt 这些跟画图无关的东西 —— 这就是当初用 Pick 的好处。
+    // 全库视图没有天然的「根条目」，所以造一个虚拟根节点把全部条目包起来。
+    // chats: 子条目下线后，MindMapSource 的多层级字段改叫 items（仅全库导图用），
+    // 依然不用伪造 id、createdAt 这些跟画图无关的字段。
     const virtualRoot = {
       title: '我的知识库',
       description: '',
       level: '学习中' as const,
-      children: knowledgeStore.items,
+      items: knowledgeStore.items,
     }
 
     await generateMindMapWithAI(
@@ -78,7 +76,7 @@ async function generateFromKnowledge() {
       (error) => {
         store.setError(error.message)
         store.setLoading(false)
-      }
+      },
     )
   } catch (e) {
     store.setError((e as Error).message)
@@ -104,7 +102,9 @@ async function generateFromKnowledge() {
   margin-bottom: var(--spacing-md);
   padding: 0 var(--spacing-xs);
 }
-.header h2 { margin: 0; }
+.header h2 {
+  margin: 0;
+}
 .actions {
   display: flex;
   gap: var(--spacing-sm);
@@ -114,7 +114,8 @@ async function generateFromKnowledge() {
   background: var(--color-primary);
   color: #fff;
   border: none;
-  border-radius: var(--radius-sm);
+  /* 🔧 圆角统一到 --radius-md（8px），与「新建条目」标准一致，原为 4px 方角 */
+  border-radius: var(--radius-md);
   font-size: var(--font-size-md);
   cursor: pointer;
   transition: background var(--transition-normal);
@@ -161,10 +162,22 @@ async function generateFromKnowledge() {
   margin: 0 var(--spacing-xs);
   animation: typing 1.4s infinite both;
 }
-.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
 @keyframes typing {
-  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
-  40% { opacity: 1; transform: scale(1); }
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>

@@ -267,16 +267,35 @@ export const useProjectStore = defineStore('project', () => {
     await loadProjects()
   }
 
-  // 计算项目总进度（节点平均进度）
+  // 进度规则统一（2026-10-09）：
+  // 1. status = completed 的节点有效进度恒为 100%——否则「已完成」标签却挂着 50% 两套账打架；
+  // 2. 有子任务的节点由子任务有效进度平均推导（递归），手填 progress 只对叶子节点生效。
+  //    旧实现 getProjectProgress 只平均顶层手填值，子任务全做完项目进度也不动——真 bug。
+  //    待处理不强制 0%：允许先填进度再翻状态，不替用户做决定。
+  function getEffectiveProgress(node: ProjectNode): number {
+    if (node.status === 'completed') return 100
+    if (node.children?.length) {
+      const sum = node.children.reduce((s, c) => s + getEffectiveProgress(c), 0)
+      return Math.round(sum / node.children.length)
+    }
+    return node.progress
+  }
+
+  // 计算项目总进度：顶层节点各取「有效进度」（见 getEffectiveProgress）再平均。
+  // 故意不加权重：单人项目估不准工作量，假精确还多一个要维护的字段。
   function getProjectProgress(project: Project): number {
     if (project.nodes.length === 0) return 0 // 如果没有节点，进度为0
-    const total = project.nodes.reduce((sum: number, n: ProjectNode) => sum + n.progress, 0) // 计算所有节点的进度总和
+    const total = project.nodes.reduce(
+      (sum: number, n: ProjectNode) => sum + getEffectiveProgress(n),
+      0,
+    ) // 每个顶层节点按规则取有效进度后求和
     return Math.round(total / project.nodes.length) // 计算平均进度并四舍五入
   }
 
-  // 计算项目完成节点数
+  // 计算项目已完成节点数（顶层、按状态）——概览区的「已完成 x/y」用它。
+  // 原来按 progress === 100 数，和新规则（completed 恒 100%、叶子才手填）口径不一致，改为按状态数。
   function getCompletedNodes(project: Project): number {
-    return project.nodes.filter((n) => n.progress === 100).length // 计算完成节点的数量
+    return project.nodes.filter((n) => n.status === 'completed').length
   }
 
   return {
@@ -293,6 +312,7 @@ export const useProjectStore = defineStore('project', () => {
     addFileToNode,
     removeFileFromNode,
     getProjectProgress,
+    getEffectiveProgress,
     getCompletedNodes,
     addAttachment,
     removeAttachment,

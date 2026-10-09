@@ -79,16 +79,12 @@ const editTitle = ref('')
 const editDesc = ref('')
 const editLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
-// 卡片底部显示「N 份资料 · N 个子条目」，用来体现条目本身的丰富度。
-// 两者都为 0 时返回空串，模板里 v-if 直接不渲染，避免每张卡都挂一句「暂无」的占位噪音。
-// 用可选链 + ?? 兜底：旧数据里的 children / attachments 可能是 undefined。
+// 卡片底部显示「N 份资料」，用来体现条目本身的丰富度。
+// 为 0 时返回空串，模板里 v-if 直接不渲染，避免每张卡都挂一句「暂无」的占位噪音。
+// chats: 子条目已下线，统计只剩附件数
 const statsText = computed(() => {
-  const parts: string[] = []
   const attachmentCount = props.item.attachments?.length ?? 0
-  const childCount = props.item.children?.length ?? 0
-  if (attachmentCount > 0) parts.push(`${attachmentCount} 份资料`)
-  if (childCount > 0) parts.push(`${childCount} 个子条目`)
-  return parts.join(' · ')
+  return attachmentCount > 0 ? `${attachmentCount} 份资料` : ''
 })
 
 // 状态点颜色：待学习用中性灰而不是 red——「还没开始学」不是错误状态，

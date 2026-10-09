@@ -11,7 +11,9 @@ export interface MenuItem {
   tour?: string // 新手引导用：对应引导步骤的 data-tour 选择器
 }
 
-//新增数据库条目类型(升级为树形结构)
+//新增数据库条目类型
+// chats: 子条目（children 树形）已整体下线——「一个知识条目」就是一层，
+// 条目下的层级内容交给 notes（笔记）承载，AI 导图/聚焦的树形下一级也是笔记
 export interface KnowledgeItem {
   id?: number // 自增主键，可选（新增时没有 id）
   title: string // 技能名称
@@ -20,7 +22,6 @@ export interface KnowledgeItem {
   level: '已学会' | '学习中' | '待学习' // 掌握程度（联合类型）
   createdAt: string // 创建时间
   updatedAt: string
-  children: KnowledgeItem[] // 子技能列表（树形结构递归类型）
   attachments: Attachment[] // 附件列表（支持图片预览）
   mindmapData?: MindMapNode | null // 新增：思维导图数据，可选
   // chats: 关系第一版（手动关联，只存目标 id，无 AI 推断）

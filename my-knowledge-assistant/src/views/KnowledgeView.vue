@@ -23,9 +23,6 @@
       <div class="stats-num">{{ stats.total }}</div>
       <div class="stats-meta">
         <div class="stats-title">共 {{ stats.total }} 个条目</div>
-        <div class="stats-legend">
-          已学会 {{ stats.done }} · 学习中 {{ stats.learning }} · 待学习 {{ stats.todo }}
-        </div>
       </div>
     </div>
 
@@ -38,13 +35,11 @@
       @updated="store.loadItems"
     />
 
-    <!-- 添加知识库弹窗 -->
-    <div v-if="showAddModal" class="modal-overlay" @click.self="showAddModal = false">
-      <div class="modal">
-        <h3>添加知识库</h3>
-        <KnowledgeForm @add="handleAdd" @cancel="showAddModal = false" />
-      </div>
-    </div>
+    <!-- chats: 弹窗外壳抽成 BaseModal 统一维护（遮罩/卡片/Esc 关闭），这里只留标题和表单 -->
+    <BaseModal v-if="showAddModal" @close="showAddModal = false">
+      <h3>添加知识库</h3>
+      <KnowledgeForm @add="handleAdd" @cancel="showAddModal = false" />
+    </BaseModal>
   </div>
 </template>
 
@@ -55,6 +50,7 @@ import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import type { KnowledgeItem } from '@/types'
 import KnowledgeList from '@/components/KnowledgeList.vue'
 import KnowledgeForm from '@/components/KnowledgeForm.vue'
+import BaseModal from '@/components/BaseModal.vue'
 
 const store = useKnowledgeStore()
 const router = useRouter()
@@ -234,29 +230,5 @@ function goToDetail(item: KnowledgeItem) {
   color: var(--color-text-secondary);
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.4);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal {
-  background: var(--color-bg-white);
-  padding: var(--spacing-xl);
-  border-radius: var(--radius-lg);
-  min-width: 400px;
-  max-width: 90%;
-  box-shadow: var(--shadow-xl);
-}
-.modal h3 {
-  margin-top: 0;
-  margin-bottom: var(--spacing-md);
-}
+/* chats: 遮罩与卡片外壳样式已抽到 BaseModal，这里只保留页内自己的布局样式 */
 </style>

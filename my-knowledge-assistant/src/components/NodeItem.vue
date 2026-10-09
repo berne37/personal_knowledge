@@ -6,12 +6,23 @@
       </button>
       <span class="node-title">{{ node.title }}</span>
       <span class="node-status" :class="node.status">{{ getStatusLabel(node.status) }}</span>
-      <span class="node-progress">{{ node.progress }}%</span>
+      <!-- 🔧 有子任务的节点显示「推导进度」（completed 恒 100 / 子任务平均），
+           手填值只对叶子节点生效——否则行上显示手填 50%，项目进度却按子任务算，两套数字对不上 -->
+      <span class="node-progress" :title="node.children?.length ? '进度由子任务平均得出' : ''">
+        {{ store.getEffectiveProgress(node) }}%
+      </span>
       <div v-if="node.attachments?.length" class="attachments">
         <div v-for="attachment in node.attachments" :key="attachment.id" class="attachment-item">
-          <img v-if="attachment.type?.startsWith('image/')" :src="attachment.data" class="attachment-thumb" :alt="attachment.name" />
+          <img
+            v-if="attachment.type?.startsWith('image/')"
+            :src="attachment.data"
+            class="attachment-thumb"
+            :alt="attachment.name"
+          />
           <span class="file-name">{{ attachment.name }}</span>
-          <button class="btn-icon" title="删除附件" @click="removeAttachment(attachment.id)">×</button>
+          <button class="btn-icon" title="删除附件" @click="removeAttachment(attachment.id)">
+            ×
+          </button>
         </div>
       </div>
       <div class="node-actions">
@@ -70,7 +81,11 @@ import type { ProjectNode } from '@/types'
 const store = useProjectStore()
 const props = defineProps<{ node: ProjectNode; projectId: string }>()
 const emit = defineEmits<{
-  (e: 'addChild', parentId: string, nodeData: Omit<ProjectNode, 'id' | 'createdAt' | 'updatedAt' | 'children' | 'attachments'>): void
+  (
+    e: 'addChild',
+    parentId: string,
+    nodeData: Omit<ProjectNode, 'id' | 'createdAt' | 'updatedAt' | 'children' | 'attachments'>,
+  ): void
   (e: 'delete', nodeId: string): void
 }>()
 
@@ -151,7 +166,9 @@ function getStatusLabel(status: string): string {
 </script>
 
 <style scoped>
-.node-item { margin-bottom: var(--spacing-xs); }
+.node-item {
+  margin-bottom: var(--spacing-xs);
+}
 .node-header {
   display: flex;
   align-items: center;
@@ -169,20 +186,39 @@ function getStatusLabel(status: string): string {
   color: var(--color-text-secondary);
   padding: 2px var(--spacing-xs);
 }
-.expand-btn:hover { color: var(--color-text); }
-.node-title { font-weight: 500; }
+.expand-btn:hover {
+  color: var(--color-text);
+}
+.node-title {
+  font-weight: 500;
+}
 .node-status {
   font-size: var(--font-size-xs);
   padding: 2px 10px;
   border-radius: var(--radius-full);
   color: #fff;
 }
-.node-status.pending { background: var(--status-pending); }
-.node-status.in-progress { background: var(--status-in-progress); }
-.node-status.completed { background: var(--status-completed); }
-.node-status.blocked { background: var(--status-blocked); }
-.node-progress { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
-.node-actions { display: flex; gap: var(--spacing-xs); margin-left: auto; }
+.node-status.pending {
+  background: var(--status-pending);
+}
+.node-status.in-progress {
+  background: var(--status-in-progress);
+}
+.node-status.completed {
+  background: var(--status-completed);
+}
+.node-status.blocked {
+  background: var(--status-blocked);
+}
+.node-progress {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.node-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-left: auto;
+}
 .node-actions button,
 .attachment-item .btn-icon {
   background: transparent;
@@ -194,8 +230,14 @@ function getStatusLabel(status: string): string {
   color: var(--color-text-secondary);
   transition: all var(--transition-fast);
 }
-.node-actions button:hover { background: var(--color-bg-hover); color: var(--color-text); }
-.node-children { margin-left: 28px; margin-top: var(--spacing-sm); }
+.node-actions button:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+.node-children {
+  margin-left: 28px;
+  margin-top: var(--spacing-sm);
+}
 .add-child-form,
 .edit-form {
   margin-left: 28px;
@@ -218,7 +260,9 @@ function getStatusLabel(status: string): string {
   font-size: var(--font-size-sm);
 }
 .add-child-form input[type='number'],
-.edit-form input[type='number'] { width: 60px; }
+.edit-form input[type='number'] {
+  width: 60px;
+}
 .add-child-form button,
 .edit-form button {
   padding: var(--spacing-xs) 12px;
@@ -227,9 +271,22 @@ function getStatusLabel(status: string): string {
   cursor: pointer;
 }
 .add-child-form .btn-add,
-.edit-form .btn-save { background: var(--color-primary); color: #fff; border: none; }
-.add-child-form .btn-cancel { background: var(--color-divider); color: var(--color-text); border: none; }
-.attachments { display: flex; flex-wrap: wrap; gap: var(--spacing-xs); align-items: center; }
+.edit-form .btn-save {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+}
+.add-child-form .btn-cancel {
+  background: var(--color-divider);
+  color: var(--color-text);
+  border: none;
+}
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  align-items: center;
+}
 .attachment-item {
   display: flex;
   align-items: center;
@@ -240,8 +297,24 @@ function getStatusLabel(status: string): string {
   border: 1px solid var(--color-border);
   font-size: var(--font-size-xs);
 }
-.attachment-thumb { width: 32px; height: 32px; object-fit: cover; border-radius: var(--radius-sm); }
-.file-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.attachment-item .btn-icon { font-size: var(--font-size-xs); padding: 0 4px; }
-.attachment-item .btn-icon:hover { color: var(--color-danger); background: transparent; }
+.attachment-thumb {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.file-name {
+  max-width: 80px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attachment-item .btn-icon {
+  font-size: var(--font-size-xs);
+  padding: 0 4px;
+}
+.attachment-item .btn-icon:hover {
+  color: var(--color-danger);
+  background: transparent;
+}
 </style>

@@ -1,11 +1,12 @@
 <template>
   <div v-if="data" class="mindmap-wrapper">
     <div ref="mindMapContainer" class="mindmap-container"></div>
+    <button class="fit-btn" title="复位到整图可见" @click="resetView">复位</button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import MindMap from 'simple-mind-map'
 import type { MindMapNode } from '@/services/mindMap'
 
@@ -18,6 +19,8 @@ let mindMapInstance: any = null
 let resizeObserver: ResizeObserver | null = null
 // 暂存最新要渲染的数据：容器还没显示（尺寸为 0）时先攒着，等显示后再渲染
 let pendingData: MindMapNode | null = null
+// chats: 每份新数据只做一次自动 fit；之后用户拖拽/滚轮平移不被打断
+let hasFitted = false
 
 // 容器此刻是否有有效尺寸（非 0）
 function hasSize(): boolean {
@@ -27,37 +30,13 @@ function hasSize(): boolean {
   return width > 0 && height > 0
 }
 
-// chats: 渲染后让卡片尺寸跟随导图内容，整图原样完整显示、不被裁切。
-// 读取 simple-mind-map 的实际内容包围盒，把外层 wrapper 撑到「内容尺寸 + 留白」，
-// 再把内容平移到 (pad, pad) 起点（scale 保持 1，不缩放）。大图超出部分由外层 overflow:auto 滚动查看。
-function adaptToContent() {
-  const container = mindMapContainer.value
-  if (!mindMapInstance || !container) return
+// chats: 复位按钮——视图完全交给库内部平移后，用户可能把图拖出视野，
+// 给一个一键回到「整图可见」的入口，比让用户凭手感拖回来可靠
+function resetView() {
   try {
-    const rect = mindMapInstance.draw?.rbox?.()
-    if (!rect || !isFinite(rect.width) || rect.width <= 0) {
-      // chats: 取不到内容尺寸时兜底，缩放进视口至少保证完整可见
-      mindMapInstance.view?.fit?.()
-      return
-    }
-    const pad = 24
-    const w = Math.ceil(rect.width + pad * 2)
-    const h = Math.ceil(rect.height + pad * 2)
-    container.style.width = w + 'px'
-    container.style.height = h + 'px'
-    // chats: 通知 simple-mind-map 重新读取容器尺寸，否则内部变换仍按旧尺寸计算
-    mindMapInstance.resize?.()
-    // chats: 把内容包围盒左上角平移到 (pad, pad)，整图从左上角完整铺开
-    mindMapInstance.view?.setTransformData?.({
-      state: { scale: 1, x: pad - (rect.x ?? 0), y: pad - (rect.y ?? 0) },
-    })
-  } catch (e) {
-    // chats: 任何异常都回退 fit，确保「完整显示」这条底线不被打破
-    try {
-      mindMapInstance.view?.fit?.()
-    } catch (_) {
-      /* 忽略 */
-    }
+    mindMapInstance?.view?.fit?.()
+  } catch (_) {
+    /* 忽略 */
   }
 }
 
@@ -76,26 +55,38 @@ function doRender(data: MindMapNode) {
       mindMapInstance.destroy()
       mindMapInstance = null
     }
+    hasFitted = false
 
     mindMapInstance = new MindMap({
       el: container,
       data: data,
       layout: 'logicalStructure', // 逻辑结构图（子节点向右展开）
-      // UI 微调：根节点默认会放在画布正中心，导致右侧子节点多、左侧空，
-      // 整个树看起来偏右。把根节点初始位置定在左侧（x=80, y=垂直居中），
-      // 让树从左往右生长，视觉更平衡，也减少右侧被截断的感觉。
-      initRootNodePosition: [80, 'center'],
       theme: 'primary', // 主题色
       // chats: 主题默认把 backgroundColor('#fafafa') 以内联样式写到容器上（Style.js 的
       // setBackgroundStyle），这就是导图外面那层「基础卡片」——内联样式优先级高于任何
       // 选择器，CSS 里写 background: transparent 压不住，只能从主题配置这头关掉。
       themeConfig: { backgroundColor: 'transparent' },
-      enableFreeDrag: true, // 允许自由拖拽
+      enableFreeDrag: true, // 允许拖拽单个节点
+      // chats: 视图的平移/缩放完全交给库内部机制，不再自己量尺寸、算偏移——
+      // 之前那套「量包围盒 + setTransformData」和库的内部变换互相打架，
+      // 表现为拖动/滚轮后图整个跑出视口（消失）、只渲染一半。
+      draggable: true, // 画布可拖拽平移
+      mousewheelAction: 'move', // 滚轮 = 平移视图（默认是缩放，缩放会把图滚没了）
+      mousewheelMoveStep: 80, // 滚一下平移 80px
+      initRootNodePosition: ['center', 'center'], // 根节点初始居中
     })
-    // chats: AI 重新生成或数据变化时，重新适配容器尺寸，避免新图被旧尺寸裁切
-    mindMapInstance.on?.('data_change', adaptToContent)
-    // chats: 渲染完成下一帧再适配（此时节点已落位，rbox 尺寸才真实）
-    nextTick(adaptToContent)
+    // chats: 整棵树渲染完成后做一次自动 fit，保证新图初始整图可见；
+    // 之后不再自动干预，用户的拖拽/平移状态不被打断
+    mindMapInstance.on?.('node_tree_render_end', () => {
+      if (!hasFitted) {
+        hasFitted = true
+        try {
+          mindMapInstance?.view?.fit?.()
+        } catch (_) {
+          /* 忽略 */
+        }
+      }
+    })
   } catch (error) {
     console.error('渲染MindMap时出错:', error)
     mindMapInstance = null
@@ -151,25 +142,46 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* chats: 不再固定高度/隐藏溢出。宽度交给 JS 按内容撑开（max-content），
-   外层（KnowledgeDetailView 的 .mindmap-container）负责 overflow:auto 滚动。
-   margin: auto 是「小图居中、大图可滚」的关键：外层是 flex，图比视口小时
-   auto 外边距把它推到正中，比视口大时 auto 解析为 0、照常从左上滚动
-   （用 justify-content: center 会在大图时把左侧滚出可视区，永远滚不回来）。 */
+/* chats: 容器尺寸模型大改——不再让 JS 按内容撑开 wrapper（那套 max-content /
+   min-width:100% / margin:auto 的组合是「消失 / 只渲染一半」的温床），
+   现在 wrapper 永远填满外层给的区域，视图的平移缩放由库内部 transform 处理，
+   外层不再出现滚动条。 */
 .mindmap-wrapper {
-  width: max-content;
-  /* 🔧 修复：外层（.mindmap-panel:has）也是 max-content 收缩布局，两层 max-content
-     相互参照时，内部 width:100% 的容器按「空内容」算出 0 宽——组件「没尺寸不渲染、
-     等 ResizeObserver」就永远等不到尺寸，导图静默不出现。min-width:100% 保证初始
-     至少撑满外层拿到尺寸渲染起来，渲染后 adaptToContent 会按内容改写实际宽度。 */
-  min-width: 100%;
-  margin: auto;
+  position: relative;
+  width: 100%;
+  height: 100%;
   min-height: 300px;
+  /* 思维导图页里 MindMap 是 flex column 的直接子元素，撑满剩余空间 */
+  flex: 1;
+  min-width: 0;
 }
 
 .mindmap-container {
   width: 100%;
-  min-height: 300px;
-  overflow: visible; /* 内容由 JS 平移进容器内，不靠自身滚动 */
+  height: 100%;
+  overflow: hidden; /* 平移由库内部 transform 完成，容器不需要滚动 */
+}
+
+/* chats: 复位按钮——悬浮在右下角，小而低调 */
+.fit-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 4px 12px;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  /* 🔧 圆角从 --radius-full 药丸形改回 --radius-md（8px），全站按钮统一规格 */
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+.fit-btn:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 </style>
