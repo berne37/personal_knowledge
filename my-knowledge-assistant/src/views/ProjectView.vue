@@ -44,11 +44,11 @@
       <div class="card-header" @click="toggleExpand(project.id)">
         <div class="card-title">
           <h3>{{ project.name }}</h3>
+                <!-- chats: 描述从展开区挪到头部中段（2026-10-09 用户要求）——占据标题和右侧按钮之间的空白，超长省略，不把头部撑高 -->
+        <p v-if="project.description" class="card-desc">{{ project.description }}</p>
           <span class="node-count">{{ project.nodes.length }} 个节点</span>
         </div>
-        <!-- chats: 描述从展开区挪到头部中段（2026-10-09 用户要求）——
-             占据标题和右侧按钮之间的空白，超长省略，不把头部撑高 -->
-        <p v-if="project.description" class="card-desc">{{ project.description }}</p>
+
         <!-- chats: 截止日期挨着简介但独立成元素（用户明确要求不同容器），
              从展开区挪上来，收起卡片也能看到 -->
         <span v-if="project.deadline" class="card-deadline">

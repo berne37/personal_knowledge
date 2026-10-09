@@ -101,7 +101,13 @@
                   <span class="hc-label">笔记</span>
                   <span class="hc-count">{{ notesLength }} 字</span>
                 </div>
-                <div v-if="item.notes?.trim()" class="hc-scroll hc-notes">{{ item.notes }}</div>
+                <div
+                  v-if="item.notes?.trim()"
+                  class="hc-scroll hc-notes"
+                  @wheel.prevent="onCardWheel"
+                >
+                  {{ item.notes }}
+                </div>
                 <div v-else class="hc-scroll hc-empty">暂无笔记，去「笔记」tab 记录</div>
               </div>
               <div class="header-card" @click="activeTab = 'materials'">
@@ -109,7 +115,11 @@
                   <span class="hc-label">附件</span>
                   <span class="hc-count">{{ item.attachments?.length || 0 }} 个</span>
                 </div>
-                <div v-if="item.attachments?.length" class="hc-scroll hc-atts">
+                <div
+                  v-if="item.attachments?.length"
+                  class="hc-scroll hc-atts"
+                  @wheel.prevent="onCardWheel"
+                >
                   <!-- chats: 图片附件直接出缩略图（点击开灯箱放大），非图片保持文件名 chip。
                        缩略图 stop 冒泡，避免触发卡片本身的「跳资料 tab」 -->
                   <template v-for="a in item.attachments" :key="a.id">
@@ -411,11 +421,12 @@
               <button class="btn-outline upload-btn" @click="triggerFilePicker">
                 上传附件（兼容）
               </button>
-              <!-- 修改：accept 加上 application/pdf，允许上传 PDF -->
+              <!-- 修改：accept 加上 application/pdf，允许上传 PDF；multiple 允许一次选多个 -->
               <input
                 ref="fileInput"
                 type="file"
                 accept="image/*,application/pdf"
+                multiple
                 style="display: none"
                 @change="handleFileChange"
               />
@@ -575,6 +586,13 @@ function toggleAdd(kind: RelationKind) {
 
 // chats: 子条目已下线，条目就是一层平铺，关系下拉直接用全库列表
 const otherKnowledgeItems = computed(() => store.items.filter((k) => k.id !== item.value?.id))
+
+// chats: 概览两卡的横滚区——竖滚轮转横滚。deltaY 是滚轮「竖着滚了多少」，
+// 直接加到 scrollLeft（横着滚多少）就完成换向；.prevent 拦掉默认行为，页面不跟着竖滚
+function onCardWheel(e: WheelEvent) {
+  const el = e.currentTarget as HTMLElement
+  el.scrollLeft += e.deltaY
+}
 
 // ===== 概览附件卡的图片缩略图 + 灯箱 =====
 // chats: 能当图显示的附件 = 类型是图片 且 拿得到内容（句柄的 blob URL 或 Base64 降级）
@@ -774,11 +792,14 @@ function triggerFilePicker() {
 
 async function handleFileChange(e: Event) {
   const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file || !item.value) return
+  // chats: 支持多选——files 是 FileList（类数组），先转成真数组再逐个入库
+  const files = Array.from(input.files ?? [])
+  if (files.length === 0 || !item.value) return
 
   try {
-    await store.addAttachment(item.value.id!, file)
+    for (const file of files) {
+      await store.addAttachment(item.value.id!, file)
+    }
     await loadItem(false)
     input.value = ''
   } catch (error) {
@@ -793,6 +814,8 @@ async function addViaHandle() {
   if (!item.value) return
   try {
     const handles = await (window as any).showOpenFilePicker({
+      // chats: 允许一次选多个文件
+      multiple: true,
       types: [
         {
           description: '图片或 PDF',
@@ -803,9 +826,10 @@ async function addViaHandle() {
         },
       ],
     })
-    const handle = handles[0]
     // 句柄是结构化克隆安全的对象，可直接存进 IndexedDB
-    await store.addAttachmentByHandle(item.value.id!, handle)
+    for (const handle of handles) {
+      await store.addAttachmentByHandle(item.value.id!, handle)
+    }
     await loadItem(false)
   } catch (error: any) {
     // 用户按了取消（AbortError）就不打扰；其他错误才提示
@@ -1000,8 +1024,13 @@ watch(
   white-space: nowrap;
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
-  scrollbar-width: thin;
+  /* chats: 隐藏滚动条（之前是 thin 显示一条细的）——Firefox 用 scrollbar-width，
+     Chromium/WebKit 不认它，要另配 ::-webkit-scrollbar，两条都得写 */
+  scrollbar-width: none;
   padding-bottom: 2px;
+}
+.hc-scroll::-webkit-scrollbar {
+  display: none;
 }
 .hc-notes {
   line-height: 1.6;
@@ -1010,6 +1039,50 @@ watch(
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
+}
+/* chats: 附件卡自定义横向滚动条（2026-10-09 用户要求）——灰底轨道 + 主题色滑块 +
+   两端可点击的箭头按钮（::-webkit-scrollbar-button 是原生控件，点了真的会滚）。
+   只覆盖 .hc-atts：笔记卡维持 .hc-scroll 的隐藏滚动条不动。
+   Firefox 不支持 scrollbar-button，降级为 scrollbar-color 细条（无箭头，可接受） */
+.hc-atts {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-text) var(--color-bg-hover);
+}
+.hc-atts::-webkit-scrollbar {
+  display: block; /* 覆盖 .hc-scroll 的 display:none（同优先级，靠后者胜出） */
+  height: 12px;
+}
+.hc-atts::-webkit-scrollbar-track {
+  background: var(--color-bg-hover);
+}
+.hc-atts::-webkit-scrollbar-thumb {
+  background: var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+.hc-atts::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary-hover);
+}
+/* chats: 两端箭头——start:decrement=左尖头，end:increment=右尖头；
+   只显式放开最外侧一对，Chrome 默认的内侧重叠按钮保持隐藏。
+   箭头是 SVG data URI：CSS 变量进不了 url()，色值 #999 手写对齐 --color-text-placeholder */
+.hc-atts::-webkit-scrollbar-button:horizontal:start:decrement,
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment {
+  display: block;
+  width: 14px;
+  height: 12px;
+  background-color: var(--color-bg-hover);
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.hc-atts::-webkit-scrollbar-button:horizontal:start:decrement {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'><path d='M5.5 0.5 L1.5 4 L5.5 7.5 Z' fill='%23999999'/></svg>");
+}
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'><path d='M2.5 0.5 L6.5 4 L2.5 7.5 Z' fill='%23999999'/></svg>");
+}
+.hc-atts::-webkit-scrollbar-button:horizontal:start:decrement:hover,
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment:hover {
+  background-color: var(--color-border-light);
 }
 .hc-att {
   flex: 0 0 auto;
