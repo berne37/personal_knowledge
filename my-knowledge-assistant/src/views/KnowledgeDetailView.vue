@@ -72,7 +72,12 @@
       </div>
 
       <!-- chats: 轻量看图器——概览附件卡点缩略图弹出，参照 viewerjs 交互自研 -->
-      <Lightbox :src="lightboxSrc" @close="lightboxSrc = ''" />
+      <Lightbox
+        :src="lightboxSrc"
+        :images="lightboxImages"
+        @close="lightboxSrc = ''"
+        @nav="onLightboxNav"
+      />
 
       <!-- ===== 导航栏（chats: 四 tab 重构为 概览 | 笔记 | 关系 | 资料） ===== -->
       <div class="tab-nav">
@@ -606,6 +611,26 @@ function openLightbox(att: Attachment) {
 }
 
 const lightboxSrc = ref('')
+
+// chats: 灯箱多图导航——把「能看的图」整列发给灯箱（缩略图同源，isImageAttachment 筛选），
+// ←/→ 或两侧圆钮触发 nav 时在这列里循环换 lightboxSrc。
+// 真相源仍是父组件的 lightboxSrc：灯箱只发事件不自己换图，避免两处状态打架
+const lightboxImages = computed(() =>
+  (item.value?.attachments ?? [])
+    .filter(isImageAttachment)
+    .map((a) => previewUrls.value[a.id] || a.data || '')
+    .filter(Boolean),
+)
+
+function onLightboxNav(dir: 1 | -1) {
+  const list = lightboxImages.value
+  if (list.length < 2) return
+  // 当前图可能不在列表首位：indexOf 找不到（-1，如句柄预览还没生成）就回第一张
+  const idx = list.indexOf(lightboxSrc.value)
+  const next = list[(idx === -1 ? 0 : idx + dir + list.length) % list.length]
+  // noUncheckedIndexedAccess：下标取值是 string | undefined，判空过编译
+  if (next != null) lightboxSrc.value = next
+}
 
 // chats: 关系双向——记录只存在「声明方」身上（A 声明「前置是 B」，这条就只存在 A 里），
 // 所以「谁依赖我」这种反向关系靠反查全库得出来：不改数据结构、不用迁移历史数据、
