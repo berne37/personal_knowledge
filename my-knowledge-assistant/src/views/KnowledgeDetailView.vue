@@ -86,7 +86,7 @@
           :key="tab.key"
           class="tab-btn"
           :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
+          @click="onTabClick(tab)"
         >
           {{ tab.label }}
         </button>
@@ -174,13 +174,34 @@
           </div>
         </div>
 
-        <!-- chats: 知识 tab —— 现在只管长笔记。
-             标题 / 状态 / 描述的可编辑控件已挪回页头（它们本来就显示在那儿），
-             所以这里不再出现「同一批字段在页头和 tab 里各有一套」的重复。 -->
-        <div v-show="activeTab === 'knowledge'" class="tab-panel">
-          <section class="kb-section">
+        <!-- chats: 知识 tab 改为「横向笔记条 + 笔记展示区」。
+             点导航「笔记」进入本 tab 时笔记条自动放出；在 tab 上再点一次收起/放出。
+             数据源是 noteEntries：笔记一对多落地前由单字符串派生 1 条，落地后直接换映射 -->
+        <div v-show="activeTab === 'knowledge'" class="tab-panel notes-panel">
+          <!-- chats: 横向笔记条——顶边贴住 tab 导航下边框，条目横排、可横向滚动（滚轮直滚）。
+               没有笔记时整条不渲染：空条里只有一句提示，和展示区的空状态提示重复 -->
+          <div
+            v-if="isNotesBarOpen && noteEntries.length > 0"
+            class="note-bar"
+            @wheel.prevent="onCardWheel"
+          >
+            <button
+              v-for="n in noteEntries"
+              :key="n.id"
+              class="bar-item"
+              :class="{ active: n.id === selectedNoteId }"
+              @click="selectedNoteId = n.id"
+            >
+              <span class="bi-title">{{ n.title }}</span>
+              <span class="bi-meta">{{ n.length }} 字</span>
+            </button>
+          </div>
+
+          <!-- chats: 展示区 = 原「笔记」区块搬来：标题换成选中笔记的标题，
+               正文只读渲染选中笔记；编辑态仍是页头「编辑」控制的 textarea -->
+          <section class="kb-section note-display">
             <div class="kb-section-head">
-              <h3 class="kb-title">笔记</h3>
+              <h3 class="kb-title">{{ selectedNote?.title || '笔记' }}</h3>
               <span v-if="notesLength" class="kb-count">{{ notesLength }} 字</span>
             </div>
 
@@ -188,7 +209,7 @@
                  原来是 <p> 默认的 white-space: normal，用户敲的回车会被折成一个空格，
                  多段笔记存进去、再看就挤成一坨——这是真丢内容，不是样式问题。 -->
             <div v-if="!isEditing" class="notes-view" :class="{ 'is-empty': !item.notes }">
-              {{ item.notes || '暂无笔记，点右上角「编辑」开始记录' }}
+              {{ selectedNote?.content || '暂无笔记，点右上角「编辑」开始记录' }}
             </div>
             <textarea
               v-else
@@ -198,8 +219,6 @@
               placeholder="详细笔记 / 学习心得…（回车换行会保留）"
             ></textarea>
           </section>
-
-          <!-- chat: 详情页不再提供子条目的创建、展示或跳转入口，避免在单一知识条目内继续分叉。 -->
         </div>
 
         <!-- chats: 关系 tab（第一版手动关联，无 AI） -->
@@ -519,6 +538,46 @@ const tabs = [
   { key: 'relations', label: '关系' },
 ]
 const activeTab = ref('overview')
+
+// ===== 笔记 tab 的横向笔记条 =====
+// chats: 笔记一对多落地前，笔记还是单字符串——这里先把它派生成「1 条笔记」的列表，
+// 条目的选择/放出收起交互先跑通；等 Note[] 落地，noteEntries 换成对数组的 map 即可
+const isNotesBarOpen = ref(true)
+const selectedNoteId = ref('main')
+
+interface NoteEntry {
+  id: string
+  title: string // 第一行当标题（与导图素材的「标题行」约定一致）
+  content: string
+  length: number
+}
+
+const noteEntries = computed<NoteEntry[]>(() => {
+  const raw = item.value?.notes?.trim()
+  if (!raw) return []
+  const title =
+    raw
+      .split('\n')
+      .map((l) => l.trim())
+      .find(Boolean) || '笔记'
+  return [{ id: 'main', title: title.slice(0, 20), content: raw, length: raw.length }]
+})
+
+const selectedNote = computed(() => noteEntries.value.find((n) => n.id === selectedNoteId.value))
+
+// chats: 点「笔记」以外的 tab 直接切换；在「笔记」tab 上再点一次 = 放出/收起笔记条
+function onTabClick(tab: { key: string; label: string }) {
+  if (tab.key !== 'knowledge') {
+    activeTab.value = tab.key
+    return
+  }
+  if (activeTab.value === 'knowledge') {
+    isNotesBarOpen.value = !isNotesBarOpen.value
+  } else {
+    activeTab.value = 'knowledge'
+    isNotesBarOpen.value = true // 从别的 tab 切进来，笔记条默认放出
+  }
+}
 
 // ===== 编辑模式 =====
 const isEditing = ref(false)
@@ -1065,33 +1124,40 @@ watch(
   align-items: center;
   gap: var(--spacing-xs);
 }
-/* chats: 附件卡自定义横向滚动条（2026-10-09 用户要求）——灰底轨道 + 主题色滑块 +
+/* chats: 自定义横向滚动条（2026-10-09 用户要求）——灰底轨道 + 主题色滑块 +
    两端可点击的箭头按钮（::-webkit-scrollbar-button 是原生控件，点了真的会滚）。
-   只覆盖 .hc-atts：笔记卡维持 .hc-scroll 的隐藏滚动条不动。
+   附件卡（.hc-atts）和笔记条（.note-bar）共用同一组规则，改色只动这一处。
    Firefox 不支持 scrollbar-button，降级为 scrollbar-color 细条（无箭头，可接受） */
-.hc-atts {
+.hc-atts,
+.note-bar {
   scrollbar-width: thin;
   scrollbar-color: var(--color-text) var(--color-bg-hover);
 }
-.hc-atts::-webkit-scrollbar {
+.hc-atts::-webkit-scrollbar,
+.note-bar::-webkit-scrollbar {
   display: block; /* 覆盖 .hc-scroll 的 display:none（同优先级，靠后者胜出） */
   height: 12px;
 }
-.hc-atts::-webkit-scrollbar-track {
+.hc-atts::-webkit-scrollbar-track,
+.note-bar::-webkit-scrollbar-track {
   background: var(--color-bg-hover);
 }
-.hc-atts::-webkit-scrollbar-thumb {
+.hc-atts::-webkit-scrollbar-thumb,
+.note-bar::-webkit-scrollbar-thumb {
   background: var(--color-primary);
   border-radius: var(--radius-sm);
 }
-.hc-atts::-webkit-scrollbar-thumb:hover {
+.hc-atts::-webkit-scrollbar-thumb:hover,
+.note-bar::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary-hover);
 }
 /* chats: 两端箭头——start:decrement=左尖头，end:increment=右尖头；
    只显式放开最外侧一对，Chrome 默认的内侧重叠按钮保持隐藏。
    箭头是 SVG data URI：CSS 变量进不了 url()，色值 #999 手写对齐 --color-text-placeholder */
 .hc-atts::-webkit-scrollbar-button:horizontal:start:decrement,
-.hc-atts::-webkit-scrollbar-button:horizontal:end:increment {
+.note-bar::-webkit-scrollbar-button:horizontal:start:decrement,
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment,
+.note-bar::-webkit-scrollbar-button:horizontal:end:increment {
   display: block;
   width: 14px;
   height: 12px;
@@ -1099,14 +1165,18 @@ watch(
   background-repeat: no-repeat;
   background-position: center;
 }
-.hc-atts::-webkit-scrollbar-button:horizontal:start:decrement {
+.hc-atts::-webkit-scrollbar-button:horizontal:start:decrement,
+.note-bar::-webkit-scrollbar-button:horizontal:start:decrement {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'><path d='M5.5 0.5 L1.5 4 L5.5 7.5 Z' fill='%23999999'/></svg>");
 }
-.hc-atts::-webkit-scrollbar-button:horizontal:end:increment {
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment,
+.note-bar::-webkit-scrollbar-button:horizontal:end:increment {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'><path d='M2.5 0.5 L6.5 4 L2.5 7.5 Z' fill='%23999999'/></svg>");
 }
 .hc-atts::-webkit-scrollbar-button:horizontal:start:decrement:hover,
-.hc-atts::-webkit-scrollbar-button:horizontal:end:increment:hover {
+.note-bar::-webkit-scrollbar-button:horizontal:start:decrement:hover,
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment:hover,
+.note-bar::-webkit-scrollbar-button:horizontal:end:increment:hover {
   background-color: var(--color-border-light);
 }
 .hc-att {
@@ -1312,6 +1382,64 @@ watch(
 }
 .tab-panel {
   padding: var(--spacing-xs) 0;
+}
+
+/* ===== 笔记 tab：横向笔记条 + 展示区 ===== */
+/* chats: 上移抵掉 tab-nav 的 margin-bottom + panel 自身的 padding-top，
+   笔记条顶边才贴得住导航栏下边框；展示区用 margin-top 补回原间距 */
+.notes-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-top: calc(var(--spacing-sm) * -1);
+  padding-top: 0;
+  min-height: calc(100vh - 300px);
+}
+.note-display {
+  min-width: 0; /* 防 flex 子项被长内容撑开 */
+  margin-top: 0;
+}
+/* 横向笔记条：条目横排、超出横滚（滚轮直滚，复用概览卡片的 onCardWheel）。
+   滚动条样式不在这里写——和附件卡共用上面那组自定义滚动条规则 */
+.note-bar {
+  display: flex;
+  align-items: stretch;
+  gap: var(--spacing-xs);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
+}
+.bar-item {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  cursor: pointer;
+}
+.bar-item:hover {
+  background: var(--color-bg);
+}
+.bar-item.active {
+  border-bottom-color: var(--color-primary);
+}
+.bar-item.active .bi-title {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.bi-title {
+  font-size: var(--font-size-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bi-meta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-placeholder);
 }
 
 /* chat: 概览采用「笔记优先、资料与层级次之」的纵向结构。
