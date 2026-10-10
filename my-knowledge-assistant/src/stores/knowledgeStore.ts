@@ -1,7 +1,7 @@
 import { openDB } from 'idb'
 import { defineStore } from 'pinia'
 import { isProxy, ref, toRaw } from 'vue'
-import type { Attachment, KnowledgeItem } from '@/types'
+import type { Attachment, KnowledgeItem, Note } from '@/types'
 
 // 初始化 IndexedDB（版本 2）
 const dbPromise = openDB('knowledgeDB', 2, {
@@ -47,6 +47,29 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       for (const item of allItems) {
         if (item.children?.length) changed = true
         delete item.children
+
+        // chats: 笔记一对多迁移——旧数据 notes 是单个字符串，包成一篇 Note：
+        // 标题取第一行（与导图素材的「标题行」约定一致），日期沿用条目的最后更新日
+        if (typeof (item as { notes?: unknown }).notes === 'string') {
+          changed = true
+          const legacy = (item as { notes: string }).notes
+          const title =
+            legacy
+              .trim()
+              .split('\n')
+              .map((l) => l.trim())
+              .find(Boolean) || '笔记'
+          item.notes = [
+            {
+              id: crypto.randomUUID(),
+              title: title.slice(0, 50),
+              content: legacy,
+              date: item.updatedAt?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+              createdAt: item.updatedAt || new Date().toISOString(),
+              updatedAt: item.updatedAt || new Date().toISOString(),
+            },
+          ]
+        }
       }
       // chats: put 的是 plain 的 allItems（含 FileSystemFileHandle 等可被结构化克隆的原生对象），不再过 reactive
       if (changed) {
@@ -220,6 +243,59 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     await loadItems()
   }
 
+  // ===== 笔记一对多 CRUD =====
+  // chats: 三个 action 都「算出新数组 → 走 updateItem 持久化」，不改传入对象——
+  // 和项目页关联知识的 toggleProjectLink 同一套纪律（给 updateItem 新值，不原地 push）。
+  // 读数据用 db.get 拿原始对象而不是 findItemById（返回的是 Vue 代理）：
+  // 代理元素混进新数组后，updateItem 的 stripProxy 只剥顶层，IDB 结构化克隆会炸
+  // （DataCloneError，和附件当初踩的是同一族坑）。
+  // toPlain 再加一道保险：Note 全字段都是字符串，JSON 往返能保证绝对是纯数据，
+  // 不管调用方从哪条响应式链路把值带进来都炸不了
+
+  function toPlainNotes(notes: Note[]): Note[] {
+    return JSON.parse(JSON.stringify(notes)) as Note[]
+  }
+
+  // 新建一篇笔记（title/date 由弹窗收集，content 可空着回来再写）
+  async function addNote(itemId: number, data: { title: string; content: string; date: string }) {
+    const db = await dbPromise
+    const raw = await db.get('items', itemId)
+    if (!raw) return
+    const now = new Date().toISOString()
+    const next: Note[] = toPlainNotes([
+      ...(raw.notes ?? []),
+      { id: crypto.randomUUID(), ...data, createdAt: now, updatedAt: now },
+    ])
+    await updateItem(itemId, { notes: next })
+  }
+
+  // 修改一篇笔记的标题/正文/日期
+  async function updateNote(
+    itemId: number,
+    noteId: string,
+    patch: Partial<Pick<Note, 'title' | 'content' | 'date'>>,
+  ) {
+    const db = await dbPromise
+    const raw = await db.get('items', itemId)
+    if (!raw) return
+    const now = new Date().toISOString()
+    const next: Note[] = toPlainNotes(
+      (raw.notes ?? []).map((n: Note) =>
+        n.id === noteId ? { ...n, ...patch, updatedAt: now } : n,
+      ),
+    )
+    await updateItem(itemId, { notes: next })
+  }
+
+  // 删除一篇笔记
+  async function deleteNote(itemId: number, noteId: string) {
+    const db = await dbPromise
+    const raw = await db.get('items', itemId)
+    if (!raw) return
+    const next: Note[] = toPlainNotes((raw.notes ?? []).filter((n: Note) => n.id !== noteId))
+    await updateItem(itemId, { notes: next })
+  }
+
   loadItems()
 
   return {
@@ -231,6 +307,9 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     removeAttachment,
     deleteItem,
     updateItem,
+    addNote,
+    updateNote,
+    deleteNote,
     findItemByTitle,
     findItemById,
   }

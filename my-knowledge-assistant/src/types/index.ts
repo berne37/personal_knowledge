@@ -13,12 +13,12 @@ export interface MenuItem {
 
 //新增数据库条目类型
 // chats: 子条目（children 树形）已整体下线——「一个知识条目」就是一层，
-// 条目下的层级内容交给 notes（笔记）承载，AI 导图/聚焦的树形下一级也是笔记
+// 条目下的层级内容交给 notes（笔记数组）承载，AI 导图/聚焦的树形下一级也是笔记
 export interface KnowledgeItem {
   id?: number // 自增主键，可选（新增时没有 id）
   title: string // 技能名称
   description: string // 短描述（一句话摘要，列表 / 头部展示）
-  notes?: string // 长笔记（详情页「文本」标签页的详细内容，可选）
+  notes?: Note[] // 笔记一对多：一条知识挂 N 篇（旧数据的单个字符串由 loadItems 自动迁移）
   level: '已学会' | '学习中' | '待学习' // 掌握程度（联合类型）
   createdAt: string // 创建时间
   updatedAt: string
@@ -29,6 +29,18 @@ export interface KnowledgeItem {
   relatedKnowledge?: number[] // 相关知识：其他 KnowledgeItem 的 id
   relatedMaterials?: string[] // 相关资料：自由文本 / 链接（v1 不强制关联附件）
   relatedProjects?: string[] // 相关项目：Project 的 id（注意 Project.id 是 string）
+}
+
+// chats: 单篇笔记——一对多落地后的数据单元。
+// 标题/日期是用户显式填写的元数据（新建弹窗收集），正文才是学习内容本体。
+// 旧数据（单个字符串）迁移策略见 knowledgeStore.loadItems：包成一篇，标题取第一行
+export interface Note {
+  id: string
+  title: string // 笔记标题（也是 AI 导图素材里这一分支的节点文本）
+  content: string // 笔记正文
+  date: string // 笔记归属日期（YYYY-MM-DD，新建弹窗的日期选择）
+  createdAt: string
+  updatedAt: string
 }
 
 //新增思维导图节点类型

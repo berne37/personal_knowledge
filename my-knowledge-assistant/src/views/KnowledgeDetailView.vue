@@ -79,6 +79,23 @@
         @nav="onLightboxNav"
       />
 
+      <!-- chats: 笔记右键菜单——Teleport 到 body，全屏透明遮罩负责「点外面关闭」，
+           菜单本体用 clientX/Y 定位（贴边 clamp 防止弹出视口） -->
+      <Teleport to="body">
+        <div
+          v-if="noteMenu.visible"
+          class="ctx-mask"
+          @click.self="closeNoteMenu"
+          @contextmenu.prevent="closeNoteMenu"
+        >
+          <div class="ctx-menu" :style="{ left: noteMenu.x + 'px', top: noteMenu.y + 'px' }">
+            <button class="ctx-item" @click="noteMenuAction('edit')">修改笔记</button>
+            <button class="ctx-item" @click="noteMenuAction('share')">分享笔记</button>
+            <button class="ctx-item" @click="noteMenuAction('download')">下载笔记（.md）</button>
+          </div>
+        </div>
+      </Teleport>
+
       <!-- ===== 导航栏（chats: 四 tab 重构为 概览 | 笔记 | 关系 | 资料） ===== -->
       <div class="tab-nav">
         <button
@@ -104,14 +121,18 @@
               <div class="header-card" @click="activeTab = 'knowledge'">
                 <div class="hc-head">
                   <span class="hc-label">笔记</span>
-                  <span class="hc-count">{{ notesLength }} 字</span>
+                  <span class="hc-count">{{ item.notes?.length || 0 }} 篇</span>
                 </div>
                 <div
-                  v-if="item.notes?.trim()"
-                  class="hc-scroll hc-notes"
+                  v-if="item.notes?.length"
+                  class="hc-scroll hc-atts"
                   @wheel.prevent="onCardWheel"
                 >
-                  {{ item.notes }}
+                  <!-- chats: 笔记一对多——横滚区每篇一个标题 chip，尺寸对齐附件缩略图（44px 见方），
+                       两张卡内容行等高；样式复用附件的 .hc-att 只保留配色，尺寸单独走 .hc-note-chip -->
+                  <span v-for="n in item.notes" :key="n.id" class="hc-note-chip">{{
+                    n.title
+                  }}</span>
                 </div>
                 <div v-else class="hc-scroll hc-empty">暂无笔记，去「笔记」tab 记录</div>
               </div>
@@ -174,52 +195,88 @@
           </div>
         </div>
 
-        <!-- chats: 知识 tab 改为「横向笔记条 + 笔记展示区」。
+        <!-- chats: 知识 tab = 横向笔记条 + 下方阅读区（笔记一对多，Note[] 真数据）。
              点导航「笔记」进入本 tab 时笔记条自动放出；在 tab 上再点一次收起/放出。
-             数据源是 noteEntries：笔记一对多落地前由单字符串派生 1 条，落地后直接换映射 -->
+             点条目 = 下方阅读区显示这篇内容（再点一次收起），右键是快捷菜单；
+             编辑/新建走弹窗，阅读就在条内，不弹窗 -->
         <div v-show="activeTab === 'knowledge'" class="tab-panel notes-panel">
           <!-- chats: 横向笔记条——顶边贴住 tab 导航下边框，条目横排、可横向滚动（滚轮直滚）。
-               没有笔记时整条不渲染：空条里只有一句提示，和展示区的空状态提示重复 -->
-          <div
-            v-if="isNotesBarOpen && noteEntries.length > 0"
-            class="note-bar"
-            @wheel.prevent="onCardWheel"
-          >
+               没有笔记也渲染：否则空条目上点「笔记」横条整个消失，
+               收放交互看起来像「没反应」（2026-10-10 用户实测踩中）。
+               点条目 = 下方阅读区显示这篇内容；右键 = 快捷菜单 -->
+          <div v-if="isNotesBarOpen" class="note-bar" @wheel.prevent="onCardWheel">
             <button
               v-for="n in noteEntries"
               :key="n.id"
               class="bar-item"
-              :class="{ active: n.id === selectedNoteId }"
-              @click="selectedNoteId = n.id"
+              :class="{ active: n.id === viewingNoteId }"
+              @click="openNote(n.id)"
+              @contextmenu.prevent="openNoteMenu($event, n)"
             >
               <span class="bi-title">{{ n.title }}</span>
-              <span class="bi-meta">{{ n.length }} 字</span>
+            </button>
+            <!-- chats: 新建入口常驻（有笔记也要能加第二篇），弹窗收集标题/日期/正文 -->
+            <button class="bar-add" @click="openCreateNote">＋ 新建笔记</button>
+          </div>
+          <!-- chats: 阅读区——点笔记条目在下方展开内容（2026-10-10 用户本意：
+               openNote 是「打开看」，不是弹窗）。标题/日期一行头 + 正文 pre-wrap；
+               编辑按钮进弹窗表单。无选中不渲染，不占地方 -->
+          <div v-if="viewingNote" class="note-reader">
+            <div class="nr-head">
+              <div class="nr-meta">
+                <span class="nr-title">{{ viewingNote.title }}</span>
+                <span class="nr-date">{{ viewingNote.date }}</span>
+              </div>
+              <div class="nr-actions">
+                <button class="btn-outline" @click="viewingNoteId = null">关闭</button>
+                <button class="btn-outline btn-solid" @click="openNoteEditor(viewingNote.id)">
+                  编辑
+                </button>
+              </div>
+            </div>
+            <div v-if="viewingNote.content" class="nr-content">{{ viewingNote.content }}</div>
+            <div v-else class="nr-content nr-placeholder">（这篇笔记还没有正文）</div>
+          </div>
+        </div>
+
+        <!-- chats: 新建/修改笔记共用一个弹窗——项目统一外壳 BaseModal，
+             新建时只填标题/日期/正文，修改时表单回填、多一个「删除」按钮。
+             阅读不放弹窗——点条目在笔记条下方展示（2026-10-10 用户定稿） -->
+        <BaseModal v-if="noteModalOpen" @close="noteModalOpen = false">
+          <h3>{{ editingNoteId ? '修改笔记' : '新建笔记' }}</h3>
+          <div class="note-form">
+            <label class="nf-field">
+              <span class="nf-label">标题</span>
+              <input v-model="noteForm.title" type="text" placeholder="笔记标题" />
+            </label>
+            <label class="nf-field">
+              <span class="nf-label">日期</span>
+              <input v-model="noteForm.date" type="date" />
+            </label>
+            <label class="nf-field">
+              <span class="nf-label">正文</span>
+              <textarea
+                v-model="noteForm.content"
+                rows="8"
+                placeholder="笔记内容…（回车换行会保留）"
+              ></textarea>
+            </label>
+          </div>
+          <div class="nf-actions">
+            <button v-if="editingNoteId" class="btn-outline nf-danger" @click="removeCurrentNote">
+              删除笔记
+            </button>
+            <span class="nf-spacer"></span>
+            <button class="btn-outline" @click="noteModalOpen = false">取消</button>
+            <button
+              class="btn-outline btn-solid"
+              :disabled="!noteForm.title.trim()"
+              @click="saveNote"
+            >
+              保存
             </button>
           </div>
-
-          <!-- chats: 展示区 = 原「笔记」区块搬来：标题换成选中笔记的标题，
-               正文只读渲染选中笔记；编辑态仍是页头「编辑」控制的 textarea -->
-          <section class="kb-section note-display">
-            <div class="kb-section-head">
-              <h3 class="kb-title">{{ selectedNote?.title || '笔记' }}</h3>
-              <span v-if="notesLength" class="kb-count">{{ notesLength }} 字</span>
-            </div>
-
-            <!-- 只读：靠 white-space: pre-wrap 保住换行。
-                 原来是 <p> 默认的 white-space: normal，用户敲的回车会被折成一个空格，
-                 多段笔记存进去、再看就挤成一坨——这是真丢内容，不是样式问题。 -->
-            <div v-if="!isEditing" class="notes-view" :class="{ 'is-empty': !item.notes }">
-              {{ selectedNote?.content || '暂无笔记，点右上角「编辑」开始记录' }}
-            </div>
-            <textarea
-              v-else
-              v-model="editNotes"
-              class="notes-edit"
-              rows="12"
-              placeholder="详细笔记 / 学习心得…（回车换行会保留）"
-            ></textarea>
-          </section>
-        </div>
+        </BaseModal>
 
         <!-- chats: 关系 tab（第一版手动关联，无 AI） -->
         <div v-show="activeTab === 'relations'" class="tab-panel">
@@ -506,9 +563,11 @@ import { useProjectStore } from '@/stores/projectStore'
 import type { Attachment, KnowledgeItem } from '@/types'
 import MindMap from '@/components/MindMap.vue'
 import Lightbox from '@/components/Lightbox.vue'
+import BaseModal from '@/components/BaseModal.vue'
 import { generateMindMapWithAI } from '@/services/mindMap'
 // chats: formatDate 抽到 src/utils/date.ts 统一维护（原先这里和列表项组件各有一份一模一样的实现）
 import { formatDate } from '@/utils/date'
+import { showError, showSuccess } from '@/utils/toast'
 // chats: 关系四组的方向图标（前置=上游 / 相关=平行 / 资料=材料 / 项目=落地），
 // 用图标区分四张卡的角色，比再写一行说明字更省地方，也和侧边栏同一套图标语言
 import { ArrowLeftRight, ArrowUp, FileText, FolderKanban } from 'lucide-vue-next'
@@ -540,30 +599,94 @@ const tabs = [
 const activeTab = ref('overview')
 
 // ===== 笔记 tab 的横向笔记条 =====
-// chats: 笔记一对多落地前，笔记还是单字符串——这里先把它派生成「1 条笔记」的列表，
-// 条目的选择/放出收起交互先跑通；等 Note[] 落地，noteEntries 换成对数组的 map 即可
+// chats: 笔记一对多已落地（Note[]），横条直接渲染真数据；
+// 点条目打开笔记弹窗（查看/编辑/删除），右键是快捷菜单
 const isNotesBarOpen = ref(true)
-const selectedNoteId = ref('main')
 
 interface NoteEntry {
   id: string
-  title: string // 第一行当标题（与导图素材的「标题行」约定一致）
+  title: string
   content: string
-  length: number
+  date: string
 }
 
-const noteEntries = computed<NoteEntry[]>(() => {
-  const raw = item.value?.notes?.trim()
-  if (!raw) return []
-  const title =
-    raw
-      .split('\n')
-      .map((l) => l.trim())
-      .find(Boolean) || '笔记'
-  return [{ id: 'main', title: title.slice(0, 20), content: raw, length: raw.length }]
-})
+const noteEntries = computed<NoteEntry[]>(() =>
+  (item.value?.notes ?? []).map((n) => ({
+    id: n.id,
+    title: n.title,
+    content: n.content,
+    date: n.date,
+  })),
+)
 
-const selectedNote = computed(() => noteEntries.value.find((n) => n.id === selectedNoteId.value))
+// ===== 笔记阅读区 + 弹窗（阅读在条内，新建/修改走 BaseModal） =====
+const noteModalOpen = ref(false)
+const editingNoteId = ref<string | null>(null) // null = 新建模式
+const noteForm = ref({ title: '', date: '', content: '' })
+// chats: 阅读区选中态——存 id 而不是存整篇，笔记改完 loadItem 刷新后内容自动跟着新
+const viewingNoteId = ref<string | null>(null)
+const viewingNote = computed(
+  () => item.value?.notes?.find((n) => n.id === viewingNoteId.value) ?? null,
+)
+
+function openCreateNote() {
+  editingNoteId.value = null
+  noteForm.value = { title: '', date: new Date().toISOString().slice(0, 10), content: '' }
+  noteModalOpen.value = true
+}
+
+// chats: 点笔记条目 = 下方阅读区放出这篇（2026-10-10 用户本意：openNote 是「打开看」，
+// 不弹窗）；再点同一篇 = 收起。编辑入口在阅读区右上角按钮 / 右键菜单
+function openNote(id: string) {
+  viewingNoteId.value = viewingNoteId.value === id ? null : id
+}
+
+// chats: 右键「修改笔记」/ 阅读区「编辑」= 弹窗表单（找笔记 → 回填 → 开弹窗）
+function openNoteEditor(id: string) {
+  const n = (item.value?.notes ?? []).find((x) => x.id === id)
+  if (!n) return
+  editingNoteId.value = id
+  noteForm.value = { title: n.title, date: n.date, content: n.content }
+  noteModalOpen.value = true
+}
+
+async function saveNote() {
+  if (!item.value?.id) return
+  const title = noteForm.value.title.trim()
+  if (!title) return // 保存按钮在标题为空时已禁用，这里是快捷键路径的兜底
+  try {
+    if (editingNoteId.value) {
+      await store.updateNote(item.value.id, editingNoteId.value, {
+        title,
+        content: noteForm.value.content,
+        date: noteForm.value.date,
+      })
+      showSuccess('笔记已保存')
+    } else {
+      await store.addNote(item.value.id, {
+        title,
+        content: noteForm.value.content,
+        date: noteForm.value.date,
+      })
+      showSuccess('笔记已新建')
+    }
+    noteModalOpen.value = false
+    await loadItem(false) // chats: item 是本地 ref，store 写完要手动刷新本条（同 saveEdit）
+  } catch (error) {
+    // chats: 保存失败必须说话——之前 IDB 克隆失败是静默的，表现就是「点了没反应」
+    console.error('保存笔记失败:', error)
+    showError('保存笔记失败：' + (error instanceof Error ? error.message : String(error)))
+  }
+}
+
+async function removeCurrentNote() {
+  if (!item.value?.id || !editingNoteId.value) return
+  await store.deleteNote(item.value.id, editingNoteId.value)
+  noteModalOpen.value = false
+  if (viewingNoteId.value === editingNoteId.value) viewingNoteId.value = null // chats: 删的就是正在看的那篇，阅读区一起收
+  await loadItem(false) // chats: 同上，删完刷新
+  showSuccess('笔记已删除')
+}
 
 // chats: 点「笔记」以外的 tab 直接切换；在「笔记」tab 上再点一次 = 放出/收起笔记条
 function onTabClick(tab: { key: string; label: string }) {
@@ -579,18 +702,72 @@ function onTabClick(tab: { key: string; label: string }) {
   }
 }
 
+// ===== 笔记右键菜单 =====
+// chats: 修改 = 打开笔记弹窗；分享优先系统分享、不支持就退剪贴板；
+// 下载把笔记落成 .md。没有「打开所在文件夹」——笔记是 IndexedDB 里的文本，
+// 不是磁盘文件，没有文件夹可开（附件才有句柄和真实路径）
+const noteMenu = ref({ visible: false, x: 0, y: 0, noteId: 'main' })
+
+function openNoteMenu(e: MouseEvent, n: NoteEntry) {
+  noteMenu.value = {
+    visible: true,
+    // 菜单约 180×130，贴右/下边缘时往回 clamp，防止弹出到视口外
+    x: Math.min(e.clientX, window.innerWidth - 190),
+    y: Math.min(e.clientY, window.innerHeight - 150),
+    noteId: n.id,
+  }
+}
+
+function closeNoteMenu() {
+  noteMenu.value.visible = false
+}
+
+function noteMenuAction(action: 'edit' | 'share' | 'download') {
+  const n = noteEntries.value.find((e) => e.id === noteMenu.value.noteId)
+  closeNoteMenu()
+  if (!n) return
+
+  if (action === 'edit') {
+    openNoteEditor(n.id)
+    return
+  }
+
+  if (action === 'share') {
+    if (navigator.share) {
+      // 用户点取消（AbortError）不打扰，其余错误也静默——分享失败不该打断浏览
+      navigator.share({ title: n.title, text: n.content }).catch(() => {})
+    } else {
+      navigator.clipboard
+        .writeText(n.content)
+        .then(() => showSuccess('当前浏览器不支持系统分享，笔记全文已复制到剪贴板'))
+    }
+    return
+  }
+
+  if (action === 'download') {
+    // 文件名只留安全字符（Windows 文件名禁止 \ / : * ? " < > |）
+    const blob = new Blob([n.content], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${n.title.replace(/[\\/:*?"<>|]/g, '_')}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+}
+
 // ===== 编辑模式 =====
+// chats: 笔记一对多后，笔记的增改删走「笔记弹窗」（addNote/updateNote/deleteNote），
+// 页头编辑只管标题/状态/描述这三样本来就显示在页头的字段
 const isEditing = ref(false)
 const editTitle = ref('')
 const editDesc = ref('') // 短描述（头部摘要）
-const editNotes = ref('') // 长笔记（知识标签页）
 const editLevel = ref<'已学会' | '学习中' | '待学习'>('学习中')
 
 function startEdit() {
   if (!item.value) return
   editTitle.value = item.value.title
   editDesc.value = item.value.description || ''
-  editNotes.value = item.value.notes || ''
   editLevel.value = item.value.level
   isEditing.value = true
 }
@@ -603,7 +780,6 @@ async function saveEdit() {
   await store.updateItem(item.value.id!, {
     title: editTitle.value,
     description: editDesc.value,
-    notes: editNotes.value,
     level: editLevel.value,
   })
   isEditing.value = false
@@ -618,13 +794,6 @@ function cancelEdit() {
 // 原来编辑态是在模板里手写三行 <option>，改一次要改两处（类型定义 + 模板）。
 // 类型直接复用 KnowledgeItem['level']，不另外起一个联合类型，避免两处定义漂移。
 const levelOptions: Array<KnowledgeItem['level']> = ['已学会', '学习中', '待学习']
-
-// chats: 笔记字数（去掉空白再数）。编辑态跟着输入框走、常态跟着已存内容走，
-// 所以还没点保存字数就先动了，不用等落库才有反馈。
-const notesLength = computed(() => {
-  const text = isEditing.value ? editNotes.value : item.value?.notes || ''
-  return text.replace(/\s/g, '').length
-})
 
 // ===== 关系（chats: 第一版手动关联，本地 ref 与 item 字段同步） =====
 // 四种关系的字段名，写一次给 toggleAdd / removeRelation 共用，避免在几处重复写联合类型
@@ -1112,12 +1281,13 @@ watch(
      Chromium/WebKit 不认它，要另配 ::-webkit-scrollbar，两条都得写 */
   scrollbar-width: none;
   padding-bottom: 2px;
+  /* chats: 内容行高度是这一行自己的职责（SRP）——两张卡各自预留 44px，
+     互不借高：笔记卡不用「把 chip 撑到 44」来凑高，附件卡也不会被笔记卡拉变形。
+     44 与缩略图/笔记 chip 同高，两卡内容行天然等高，stretch 只补边框不挤内容 */
+  min-height: 44px;
 }
 .hc-scroll::-webkit-scrollbar {
   display: none;
-}
-.hc-notes {
-  line-height: 1.6;
 }
 .hc-atts {
   display: flex;
@@ -1126,38 +1296,31 @@ watch(
 }
 /* chats: 自定义横向滚动条（2026-10-09 用户要求）——灰底轨道 + 主题色滑块 +
    两端可点击的箭头按钮（::-webkit-scrollbar-button 是原生控件，点了真的会滚）。
-   附件卡（.hc-atts）和笔记条（.note-bar）共用同一组规则，改色只动这一处。
+   只有附件卡（.hc-atts）用这套；笔记条（.note-bar）2026-10-10 用户要求隐藏滚动条。
    Firefox 不支持 scrollbar-button，降级为 scrollbar-color 细条（无箭头，可接受） */
-.hc-atts,
-.note-bar {
+.hc-atts {
   scrollbar-width: thin;
   scrollbar-color: var(--color-text) var(--color-bg-hover);
 }
-.hc-atts::-webkit-scrollbar,
-.note-bar::-webkit-scrollbar {
+.hc-atts::-webkit-scrollbar {
   display: block; /* 覆盖 .hc-scroll 的 display:none（同优先级，靠后者胜出） */
   height: 12px;
 }
-.hc-atts::-webkit-scrollbar-track,
-.note-bar::-webkit-scrollbar-track {
+.hc-atts::-webkit-scrollbar-track {
   background: var(--color-bg-hover);
 }
-.hc-atts::-webkit-scrollbar-thumb,
-.note-bar::-webkit-scrollbar-thumb {
+.hc-atts::-webkit-scrollbar-thumb {
   background: var(--color-primary);
   border-radius: var(--radius-sm);
 }
-.hc-atts::-webkit-scrollbar-thumb:hover,
-.note-bar::-webkit-scrollbar-thumb:hover {
+.hc-atts::-webkit-scrollbar-thumb:hover {
   background: var(--color-primary-hover);
 }
 /* chats: 两端箭头——start:decrement=左尖头，end:increment=右尖头；
    只显式放开最外侧一对，Chrome 默认的内侧重叠按钮保持隐藏。
    箭头是 SVG data URI：CSS 变量进不了 url()，色值 #999 手写对齐 --color-text-placeholder */
 .hc-atts::-webkit-scrollbar-button:horizontal:start:decrement,
-.note-bar::-webkit-scrollbar-button:horizontal:start:decrement,
-.hc-atts::-webkit-scrollbar-button:horizontal:end:increment,
-.note-bar::-webkit-scrollbar-button:horizontal:end:increment {
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment {
   display: block;
   width: 14px;
   height: 12px;
@@ -1165,18 +1328,14 @@ watch(
   background-repeat: no-repeat;
   background-position: center;
 }
-.hc-atts::-webkit-scrollbar-button:horizontal:start:decrement,
-.note-bar::-webkit-scrollbar-button:horizontal:start:decrement {
+.hc-atts::-webkit-scrollbar-button:horizontal:start:decrement {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'><path d='M5.5 0.5 L1.5 4 L5.5 7.5 Z' fill='%23999999'/></svg>");
 }
-.hc-atts::-webkit-scrollbar-button:horizontal:end:increment,
-.note-bar::-webkit-scrollbar-button:horizontal:end:increment {
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'><path d='M2.5 0.5 L6.5 4 L2.5 7.5 Z' fill='%23999999'/></svg>");
 }
 .hc-atts::-webkit-scrollbar-button:horizontal:start:decrement:hover,
-.note-bar::-webkit-scrollbar-button:horizontal:start:decrement:hover,
-.hc-atts::-webkit-scrollbar-button:horizontal:end:increment:hover,
-.note-bar::-webkit-scrollbar-button:horizontal:end:increment:hover {
+.hc-atts::-webkit-scrollbar-button:horizontal:end:increment:hover {
   background-color: var(--color-border-light);
 }
 .hc-att {
@@ -1384,52 +1543,59 @@ watch(
   padding: var(--spacing-xs) 0;
 }
 
-/* ===== 笔记 tab：横向笔记条 + 展示区 ===== */
+/* ===== 笔记 tab：横向笔记条（笔记一对多，展示/编辑收进弹窗） ===== */
 /* chats: 上移抵掉 tab-nav 的 margin-bottom + panel 自身的 padding-top，
-   笔记条顶边才贴得住导航栏下边框；展示区用 margin-top 补回原间距 */
+   笔记条顶边才贴得住导航栏下边框 */
 .notes-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
   margin-top: calc(var(--spacing-sm) * -1);
   padding-top: 0;
-  min-height: calc(100vh - 300px);
-}
-.note-display {
-  min-width: 0; /* 防 flex 子项被长内容撑开 */
-  margin-top: 0;
 }
 /* 横向笔记条：条目横排、超出横滚（滚轮直滚，复用概览卡片的 onCardWheel）。
-   滚动条样式不在这里写——和附件卡共用上面那组自定义滚动条规则 */
+   chats: 滚动条视觉上不显眼（2026-10-10 用户要求）——display:none + 尺寸归零双保险，
+   滚动能力保留（overflow-x: auto + 滚轮直滚都在） */
 .note-bar {
+  margin-top: var(--spacing-md);
+  margin-bottom: -4px;
   display: flex;
   align-items: stretch;
-  gap: var(--spacing-xs);
+  gap: var(--spacing-sm);
   overflow-x: auto;
   padding-bottom: var(--spacing-xs);
-  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* 旧版 Edge */
 }
+.note-bar::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+/* chats: 条目卡对齐概览页 .header-card 的视觉语言（白底 + 1px 边框 +
+   radius-md + 悬停主色描边加浅阴影），整个详情页的「卡片」长一个样；
+   原来的 tab 页签画法（底边框高亮 + 底部通栏分隔线）随之退场 */
 .bar-item {
   flex: 0 0 auto;
   display: flex;
-  align-items: baseline;
-  gap: var(--spacing-xs);
-  padding: var(--spacing-xs) var(--spacing-md);
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
   cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 .bar-item:hover {
-  background: var(--color-bg);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
 }
+/* chats: 选中态——阅读区正在展示这篇；常亮主色描边，悬停阴影不叠加 */
 .bar-item.active {
-  border-bottom-color: var(--color-primary);
-}
-.bar-item.active .bi-title {
-  color: var(--color-primary);
-  font-weight: 600;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+  background: var(--color-bg-hover);
 }
 .bi-title {
   font-size: var(--font-size-sm);
@@ -1437,9 +1603,57 @@ watch(
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.bi-meta {
+/* chats: 「新建笔记」是条目卡的虚线变体——同一套白底/圆角/悬停，
+   只把实线换虚线：示意「空位，可以往里加」，和卡片家族仍是一族 */
+.bar-add {
+  flex: 0 0 auto;
+  align-self: stretch; /* 和条目卡等高，才像同排的一张卡 */
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-white);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
   font-size: var(--font-size-xs);
-  color: var(--color-text-placeholder);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+.bar-add:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+/* ===== 笔记右键菜单（Teleport 到 body） ===== */
+.ctx-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 2100; /* 盖过灯箱(2000)，菜单要能在任何浮层之上 */
+}
+.ctx-menu {
+  position: fixed;
+  min-width: 150px;
+  padding: 4px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+.ctx-item {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+.ctx-item:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-primary);
 }
 
 /* chat: 概览采用「笔记优先、资料与层级次之」的纵向结构。
@@ -1778,47 +1992,97 @@ watch(
   }
 }
 
-/* ===== 笔记（chats: 知识 tab 的唯一内容）===== */
-/* 只读态和编辑态共享同一套排版（字号 / 行高 / 颜色），写在一条规则里。
-   分成两条写迟早会漂移，而这两处的排版一旦不一致，点「编辑」文字就会跳一下
-   —— textarea 不写 font-size 的话会退回浏览器默认的 13px Arial。 */
-.notes-view,
-.notes-edit {
-  font-size: inherit;
-  line-height: 1.8;
-  color: var(--color-text);
-  overflow-wrap: anywhere;
+/* ===== 笔记弹窗表单（chats: 新建/修改共用，BaseModal 外壳只管遮罩和卡片）===== */
+.note-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
-/* 只读态的关键是 pre-wrap：它保住用户敲的回车。
-   原来用 <p> 默认的 white-space: normal，多段笔记会被折成一整段，
-   内容没丢，但看起来像丢了。 */
-.notes-view {
-  white-space: pre-wrap;
+/* chats: 阅读区——笔记条下方展开选中笔记的内容（2026-10-10 定稿：
+   点条目在条内看，不弹窗）。卡片视觉对齐 .header-card（白底+1px 边框+radius-md） */
+.note-reader {
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
-.notes-view.is-empty {
+.nr-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+}
+.nr-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.nr-title {
+  /* global.css 的 * { font-weight: normal } 会压掉默认加粗，标题必须显式写 */
+  font-weight: 600;
+  font-size: var(--font-size-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nr-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+.nr-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex: 0 0 auto;
+}
+.nr-content {
+  white-space: pre-wrap; /* 保留写笔记时的回车换行 */
+  line-height: 1.6;
+}
+.nr-placeholder {
   color: var(--color-text-placeholder);
 }
-/* 编辑态：多一层底色提示「这里能改」，边框只在 hover / focus 出现 */
-.notes-edit {
-  box-sizing: border-box;
-  display: block;
-  width: 100%;
-  min-height: 220px;
-  padding: var(--spacing-sm);
-  font-family: inherit;
-  background: var(--color-bg);
-  border: 1px solid transparent;
+.nf-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+.nf-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+.nf-field input,
+.nf-field textarea {
+  padding: var(--spacing-sm) 12px;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
-  outline: none;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+}
+.nf-field textarea {
   resize: vertical;
-  transition: all var(--transition-fast);
+  min-height: 140px;
+  line-height: 1.8;
 }
-.notes-edit:hover {
-  background: var(--color-bg-hover);
+.nf-field textarea:focus,
+.nf-field input:focus {
+  outline: none;
+  border-color: var(--color-primary);
 }
-.notes-edit:focus {
-  background: var(--color-bg-white);
-  border-color: var(--color-border);
+.nf-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+.nf-spacer {
+  flex: 1;
+}
+.nf-danger:hover {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
 }
 
 /* ===== 附件 / 资料 ===== */

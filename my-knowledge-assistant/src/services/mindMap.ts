@@ -19,7 +19,8 @@ export interface MindMapNode {
  * 与知识条目的数据模型无关（不需要伪造 id / createdAt 等字段）。
  */
 export type MindMapSource = Pick<KnowledgeItem, 'title' | 'description' | 'level'> & {
-  notes?: string
+  // chats: 笔记一对多后是 Note[]，这里只关心标题（AI 只读标题，不读正文）
+  notes?: { title: string }[]
   items?: MindMapSource[]
 }
 
@@ -40,17 +41,11 @@ function buildKnowledgeText(node: MindMapSource, depth = 0): string {
   const desc = node.description ? `：${node.description}` : ''
   let text = `${indent}- ${node.title}${desc}${node.level ? `（掌握程度：${node.level}）` : ''}\n`
 
-  // chats: 子条目下线后，树形的下一级就是笔记——按行拆成子弹点（截行数/截长防 token 爆炸），
-  // AI 依据这些笔记行组织导图层级，不再凭标题编内容
-  if (node.notes?.trim()) {
-    const noteLines = node.notes
-      .trim()
-      .split('\n')
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .slice(0, 15)
-    for (const line of noteLines) {
-      text += `${indent}  - 笔记：${line.slice(0, 200)}\n`
+  // chats: AI 只读每篇笔记的「标题」当分支节点，正文不进素材——
+  // 导图要的是大纲骨架，整篇正文会把层级泡糊还浪费 token
+  for (const note of node.notes ?? []) {
+    if (note.title?.trim()) {
+      text += `${indent}  - 笔记：${note.title.trim().slice(0, 50)}\n`
     }
   }
 
@@ -90,7 +85,7 @@ export async function generateMindMapWithAI(
 
   // chats: 子条目下线后，「有料」= 有描述、有笔记，或（全库视图）挂了条目
   const hasItems = countNodes(source) > 1
-  const hasSource = Boolean(source.description?.trim() || source.notes?.trim()) || hasItems
+  const hasSource = Boolean(source.description?.trim() || source.notes?.length) || hasItems
   if (!hasSource) {
     onError?.(new Error('该条目还没有描述或笔记，没有可依据的资料——先补充内容再生成导图'))
     return

@@ -154,9 +154,11 @@ function buildFocusContext(item: KnowledgeItem): string {
   const lines: string[] = []
   lines.push(`【聚焦条目】${item.title}（掌握程度：${item.level}）`)
   if (item.description) lines.push(`描述：${item.description}`)
-  if (item.notes) {
+  if (item.notes?.length) {
+    // chats: 笔记一对多——每篇给「标题 + 正文」，整体截断防 token 爆炸
+    const noteText = item.notes.map((n) => `【${n.title}】${n.content}`).join('\n')
     lines.push(
-      `笔记：${item.notes.slice(0, 1500)}${item.notes.length > 1500 ? '…（笔记过长已截断）' : ''}`,
+      `笔记：${noteText.slice(0, 1500)}${noteText.length > 1500 ? '…（笔记过长已截断）' : ''}`,
     )
   }
   const pre = (item.prerequisites || [])
