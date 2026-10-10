@@ -1,13 +1,15 @@
 <template>
   <div v-if="data" class="mindmap-wrapper">
     <div ref="mindMapContainer" class="mindmap-container"></div>
-    <button class="fit-btn" title="复位到整图可见" @click="resetView">复位</button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onBeforeUnmount } from 'vue'
-import MindMap from 'simple-mind-map'
+import MindMapLib from 'simple-mind-map'
+// chats: 导出 PNG 需要 Export 插件——库本体不自带，usePlugin 注册一次即可（静态方法，全局生效）
+import Export from 'simple-mind-map/src/plugins/Export.js'
+MindMapLib.usePlugin(Export)
 import type { MindMapNode } from '@/services/mindMap'
 
 const props = defineProps<{
@@ -40,6 +42,29 @@ function resetView() {
   }
 }
 
+// chats: 放大/缩小/导出——给页面顶部的浮动工具条用（2026-10-10 参考截图定稿），
+// 组件只暴露动作，按钮布局归视图层管
+function zoomIn() {
+  try {
+    mindMapInstance?.view?.enlarge?.()
+  } catch (_) {
+    /* 忽略 */
+  }
+}
+function zoomOut() {
+  try {
+    mindMapInstance?.view?.narrow?.()
+  } catch (_) {
+    /* 忽略 */
+  }
+}
+// 导出 PNG：文件名调用方给（默认思维导图）；失败往上抛，由视图层统一走 errorMessage 展示
+async function exportPng(name = '思维导图') {
+  await mindMapInstance?.export?.('png', true, name)
+}
+
+defineExpose({ zoomIn, zoomOut, resetView, exportPng })
+
 // 真正初始化 simple-mind-map（仅在容器有尺寸时调用）
 function doRender(data: MindMapNode) {
   const container = mindMapContainer.value
@@ -57,7 +82,7 @@ function doRender(data: MindMapNode) {
     }
     hasFitted = false
 
-    mindMapInstance = new MindMap({
+    mindMapInstance = new MindMapLib({
       el: container,
       data: data,
       layout: 'logicalStructure', // 逻辑结构图（子节点向右展开）
@@ -71,8 +96,9 @@ function doRender(data: MindMapNode) {
       // 之前那套「量包围盒 + setTransformData」和库的内部变换互相打架，
       // 表现为拖动/滚轮后图整个跑出视口（消失）、只渲染一半。
       draggable: true, // 画布可拖拽平移
-      mousewheelAction: 'move', // 滚轮 = 平移视图（默认是缩放，缩放会把图滚没了）
-      mousewheelMoveStep: 80, // 滚一下平移 80px
+      // chats: 滚轮统一 = 缩放（2026-10-10 定稿）。早先改 'move' 是怕「缩放把图滚没了」，
+      // 实际用下来平移反而不顺手——放大缩小是看图的主操作，平移交给拖拽就够了
+      mousewheelAction: 'zoom',
       initRootNodePosition: ['center', 'center'], // 根节点初始居中
     })
     // chats: 整棵树渲染完成后做一次自动 fit，保证新图初始整图可见；
@@ -162,26 +188,6 @@ onBeforeUnmount(() => {
   overflow: hidden; /* 平移由库内部 transform 完成，容器不需要滚动 */
 }
 
-/* chats: 复位按钮——悬浮在右下角，小而低调 */
-.fit-btn {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  padding: 4px 12px;
-  background: var(--color-bg-white);
-  border: 1px solid var(--color-border);
-  /* 🔧 圆角从 --radius-full 药丸形改回 --radius-md（8px），全站按钮统一规格 */
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition:
-    color var(--transition-fast),
-    border-color var(--transition-fast);
-}
-.fit-btn:hover {
-  color: var(--color-primary);
-  border-color: var(--color-primary);
-}
+/* chats: 旧的右下角「复位」小按钮已撤——复位入口上移到视图层浮动工具条的「适应窗口」，
+   按钮的布局归视图层管，组件只保留画布本体 */
 </style>

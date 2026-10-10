@@ -16,8 +16,10 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@types/markdown-it": "^14.2.0",
     "idb": "^8.0.3",
     "lucide-vue-next": "^0.577.0",
+    "markdown-it": "^15.0.2",
     "pdfjs-dist": "^4.7.76",
     "pinia": "^4.0.2",
     "simple-mind-map": "^0.14.0-fix.3",

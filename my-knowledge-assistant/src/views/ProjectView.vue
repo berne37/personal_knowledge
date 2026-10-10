@@ -1,11 +1,8 @@
 <template>
-  <!-- 🔧 修复：根类名原为 project-view，样式定义的却是 .projects-view，导致限宽居中规则从未生效 -->
-  <div class="projects-view">
-    <!-- chats: 标题 + 新建按钮包进 .header（样式里 space-between 早就写好了，之前模板没套上所以按钮挤在标题下面），与知识库/思维导图页统一 -->
-    <div class="header">
-      <h2>项目进度管理</h2>
-      <button class="btn-primary" @click="showCreateModel = true">+ 新建项目</button>
-    </div>
+  <!-- chats: 2026-10-10 定稿——项目页保持修改前的朴素页头（无白底通栏），标题 + 新建按钮两端对齐 -->
+  <div class="header">
+    <h2>项目进度管理</h2>
+    <button class="btn-primary" @click="showCreateModel = true">+ 新建项目</button>
   </div>
 
   <!-- chats: 创建项目弹窗——外壳换成 BaseModal 统一维护（遮罩/卡片/Esc 关闭），
@@ -44,8 +41,8 @@
       <div class="card-header" @click="toggleExpand(project.id)">
         <div class="card-title">
           <h3>{{ project.name }}</h3>
-                <!-- chats: 描述从展开区挪到头部中段（2026-10-09 用户要求）——占据标题和右侧按钮之间的空白，超长省略，不把头部撑高 -->
-        <p v-if="project.description" class="card-desc">{{ project.description }}</p>
+          <!-- chats: 描述从展开区挪到头部中段（2026-10-09 用户要求）——占据标题和右侧按钮之间的空白，超长省略，不把头部撑高 -->
+          <p v-if="project.description" class="card-desc">{{ project.description }}</p>
           <span class="node-count">{{ project.nodes.length }} 个节点</span>
         </div>
 
@@ -425,20 +422,17 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.projects-view {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: var(--spacing-md);
-}
+/* chats: 原 .projects-view（限宽 1100 + 居中 + 留白）已随空壳容器一起删除——
+   它只包住过页头，列表从来没吃到过这些规则，留着只会误导 */
 
+/* chats: 页头回到修改前的朴素样式（2026-10-10 定稿，无白底通栏）——两端对齐 + 标题下留白；
+   按钮的 margin 归零，因为 .btn-primary 自带 margin-top，flex 对齐会被它顶歪 */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-lg);
 }
-
-/* chats: header 里按钮的上下外边距会破坏垂直居中，归零交给 flex 对齐 */
 .header .btn-primary {
   margin: 0;
 }

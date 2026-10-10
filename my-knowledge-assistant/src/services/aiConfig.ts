@@ -63,7 +63,9 @@ export function resolveAiConfig() {
     apiKey: user.apiKey || env.VITE_AI_API_KEY || '',
     baseURL: user.baseURL || env.VITE_AI_API_BASE || 'https://api.deepseek.com',
     // 对话模型：用户填的 > .env 的 VITE_AI_MODEL > 默认值
-    chatModel: user.model || env.VITE_AI_MODEL || 'deepseek-v4-flash',
+    // 🔧 修复：默认值原来是推理模型（v4-flash），思考会吃掉 max_tokens 且首字延迟长，
+    // 对话体验差（久等 + 可能空回复）。默认改非推理模型，用户/.env 仍可覆盖。
+    chatModel: user.model || env.VITE_AI_MODEL || 'deepseek-chat',
     // 思维导图专用模型：用户填的 > .env 的 VITE_MINDMAP_AI_MODEL > 空（空表示用对话模型）
     mindmapModel: user.mindmapModel || env.VITE_MINDMAP_AI_MODEL || '',
   }

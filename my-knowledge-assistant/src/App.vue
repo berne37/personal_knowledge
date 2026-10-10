@@ -7,6 +7,13 @@ import OnboardingGuide from '@/components/OnboardingGuide.vue'
 import { useRoute } from 'vue-router'
 const route = useRoute()
 
+// chats: 历史侧栏的开关在侧边栏「AI对话」按钮上——点它既进入对话页，又展开/收起历史列表
+import { useChatStore } from '@/stores/chatStore'
+const chatStore = useChatStore()
+
+function onMenuClick(item: MenuItem) {
+  if (item.path === '/chat') chatStore.toggleHistory()
+}
 
 // 菜单是静态数据，永远不会变，所以用普通常量而不是 ref。
 // 另外 ref 会把数组元素深包装成 reactive proxy，图标组件对象被包住后渲染多绕一层，没必要。
@@ -28,7 +35,7 @@ const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
     <nav class="sidebar">
       <ul>
         <li v-for="item in menuList" :key="item.path" :data-tour="item.tour">
-          <RouterLink :to="item.path" class="nav-link">
+          <RouterLink :to="item.path" class="nav-link" @click="onMenuClick(item)">
             <!-- chats: 图标是 SVG 组件，颜色继承 currentColor，所以选中态变蓝时图标会跟着变 -->
             <component :is="item.icon" :size="18" :stroke-width="1.8" />
             <span>{{ item.name }}</span>

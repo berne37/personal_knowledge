@@ -1,109 +1,163 @@
 <template>
   <div class="chat-container">
-    <!-- chats: 仿参考稿改版——顶部标题栏 + 居中对话列 + 底部圆角输入条。
-         标题栏右侧是「聚焦条目」选择器（联动 demo：选中后 AI 的上下文从全库列表
-         换成该条目的详情 + 知识关系 + 附件元数据） -->
-    <div class="chat-header">
-      <span>AI 对话</span>
-      <label class="focus-label">
-        聚焦
-        <select v-model="focusItemId" class="focus-select" :class="{ active: focusItemId !== '' }">
-          <option value="">全部知识库</option>
-          <option v-for="opt in knowledgeOptions" :key="opt.id" :value="opt.id">
-            {{ opt.label }}
-          </option>
-        </select>
-      </label>
-    </div>
-
-    <div class="message-list" ref="messageListRef">
-      <div class="chat-thread">
-        <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.role]">
-          <!-- AI = 浅色圆底灯泡图标；用户 = 深色方底对话气泡图标（行内 SVG，不引图标库） -->
-          <div v-if="msg.role === 'assistant'" class="message-avatar ai">
-            <svg
-              viewBox="0 0 24 24"
-              width="15"
-              height="15"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M9 18h6" />
-              <path d="M10 21h4" />
-              <path d="M12 3a6 6 0 0 0-4 10c.6.6 1 1.2 1 2h6c0-.8.4-1.4 1-2a6 6 0 0 0-4-10z" />
-            </svg>
-          </div>
-          <div v-else class="message-avatar user">
-            <svg
-              viewBox="0 0 24 24"
-              width="15"
-              height="15"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-          </div>
-          <div class="message-content">{{ msg.content }}</div>
+    <!-- chats: 历史会话侧栏——开关在侧边栏的「AI对话」按钮上（App.vue，状态在 chatStore）；
+         数据在 chatStore（localStorage 持久化） -->
+    <aside class="history-panel" v-show="chatStore.historyOpen">
+      <!-- chats: 顶行 = 节标题 + 搜索/收起图标按钮（DeepSeek 同款布局）；
+           点搜索整行变成过滤输入框，Esc 退出 -->
+      <div v-if="!isSearching" class="history-toolbar">
+        <div class="history-caption">历史对话</div>
+        <div class="history-actions">
+          <button class="history-icon-btn" aria-label="搜索会话" @click="openSearch">
+            <Search :size="14" :stroke-width="1.8" />
+          </button>
+          <button class="history-icon-btn" aria-label="收起历史" @click="chatStore.toggleHistory()">
+            <PanelLeftClose :size="14" :stroke-width="1.8" />
+          </button>
         </div>
-        <div v-if="isLoading" class="message assistant">
-          <div class="message-avatar ai">
-            <svg
-              viewBox="0 0 24 24"
-              width="15"
-              height="15"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.8"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M9 18h6" />
-              <path d="M10 21h4" />
-              <path d="M12 3a6 6 0 0 0-4 10c.6.6 1 1.2 1 2h6c0-.8.4-1.4 1-2a6 6 0 0 0-4-10z" />
-            </svg>
+      </div>
+      <input
+        v-else
+        v-model="searchKeyword"
+        ref="searchInputRef"
+        class="history-search"
+        placeholder="搜索会话，Esc 退出..."
+        @keyup.esc="closeSearch"
+      />
+      <div class="history-list">
+        <div
+          v-for="s in filteredSessions"
+          :key="s.id"
+          class="history-item"
+          :class="{ active: s.id === chatStore.activeId }"
+          @click="switchSession(s.id)"
+        >
+          <span class="history-title">{{ s.title }}</span>
+          <button class="history-del" @click.stop="removeSession(s.id)" aria-label="删除会话">
+            ×
+          </button>
+        </div>
+        <div v-if="!filteredSessions.length" class="history-empty">
+          {{ isSearching ? '没有匹配的会话' : '暂无历史对话' }}
+        </div>
+      </div>
+    </aside>
+
+    <div class="chat-main">
+      <div class="chat-header">
+        <span>AI 对话</span>
+        <button class="new-chat-btn" @click="startNewChat">＋ 新对话</button>
+        <label class="focus-label">
+          聚焦
+          <select
+            v-model="focusItemId"
+            class="focus-select"
+            :class="{ active: focusItemId !== '' }"
+          >
+            <option value="">全部知识库</option>
+            <option v-for="opt in knowledgeOptions" :key="opt.id" :value="opt.id">
+              {{ opt.label }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <div class="message-list" ref="messageListRef">
+        <div class="chat-thread">
+          <div v-for="(msg, index) in displayMessages" :key="index" :class="['message', msg.role]">
+            <!-- AI = 浅色圆底灯泡图标；用户 = 深色方底对话气泡图标（行内 SVG，不引图标库） -->
+            <div v-if="msg.role === 'assistant'" class="message-avatar ai">
+              <svg
+                viewBox="0 0 24 24"
+                width="15"
+                height="15"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M9 18h6" />
+                <path d="M10 21h4" />
+                <path d="M12 3a6 6 0 0 0-4 10c.6.6 1 1.2 1 2h6c0-.8.4-1.4 1-2a6 6 0 0 0-4-10z" />
+              </svg>
+            </div>
+            <div v-else class="message-avatar user">
+              <svg
+                viewBox="0 0 24 24"
+                width="15"
+                height="15"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <!-- chats: AI 消息走 markdown 渲染（模型默认输出 **加粗**/- 列表等排版符号，
+               纯文本插值会原样糊出来）；用户消息保持纯文本 -->
+            <div
+              v-if="msg.role === 'assistant'"
+              class="message-content md"
+              v-html="renderMarkdown(msg.content)"
+            ></div>
+            <div v-else class="message-content">{{ msg.content }}</div>
           </div>
-          <div class="message-content typing">
-            <span></span><span></span><span></span>AI 正在思考...
+          <div v-if="showThinking" class="message assistant">
+            <div class="message-avatar ai">
+              <svg
+                viewBox="0 0 24 24"
+                width="15"
+                height="15"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M9 18h6" />
+                <path d="M10 21h4" />
+                <path d="M12 3a6 6 0 0 0-4 10c.6.6 1 1.2 1 2h6c0-.8.4-1.4 1-2a6 6 0 0 0-4-10z" />
+              </svg>
+            </div>
+            <div class="message-content typing">
+              <span></span><span></span><span></span>AI 正在思考...
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="input-wrap">
-      <div class="input-area">
-        <input
-          v-model="inputText"
-          placeholder="输入问题，按 Enter 发送..."
-          @keyup.enter="sendMessage"
-          :disabled="isLoading"
-        />
-        <button
-          class="send-btn"
-          @click="sendMessage"
-          :disabled="isLoading || !inputText.trim()"
-          aria-label="发送"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            width="16"
-            height="16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.8"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+      <div class="input-wrap">
+        <div class="input-area">
+          <input
+            v-model="inputText"
+            placeholder="输入问题，按 Enter 发送..."
+            @keyup.enter="sendMessage"
+            :disabled="isLoading"
+          />
+          <button
+            class="send-btn"
+            @click="sendMessage"
+            :disabled="isLoading || !inputText.trim()"
+            aria-label="发送"
           >
-            <path d="M22 2 11 13" />
-            <path d="M22 2 15 22l-4-9-9-4z" />
-          </svg>
-        </button>
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M22 2 11 13" />
+              <path d="M22 2 15 22l-4-9-9-4z" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -112,28 +166,88 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { streamChat, type ChatMessage } from '@/services/ai'
+// chats: AI 回复按 markdown 渲染（html:false = 不解析内嵌 HTML，防止模型输出被注入标签）
+import MarkdownIt from 'markdown-it'
 // chats: useKnowledgeStore 的 import 原先写在文件中部，归位到顶部 import 区
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
+// chats: 会话数据层——持久化 + 多会话管理都在 chatStore，本组件只管 UI
+import { useChatStore, WELCOME_TEXT } from '@/stores/chatStore'
+// chats: 抽屉顶行的搜索/收起图标（lucide 线性图标，和 DeepSeek 顶栏同款布局）
+import { PanelLeftClose, Search } from 'lucide-vue-next'
 // 🔧 修复：buildFocusContext 用了 KnowledgeItem 类型但没导入，vue-tsc 报 TS2304，
 // 后面 map/filter 里的参数跟着变成隐式 any——一个缺导入连锁出三个错
 import type { KnowledgeItem } from '@/types'
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
+// chats: 对话状态整体搬进 chatStore（localStorage 持久化 + 多会话），本组件只留 UI 状态
+const chatStore = useChatStore()
+
+// 活跃会话的消息；还没有任何会话时用「虚拟欢迎消息」占位，首次发消息才真正建会话
+const messages = computed<ChatMessage[]>(() => chatStore.activeSession?.messages ?? [])
+const displayMessages = computed<ChatMessage[]>(() =>
+  messages.value.length ? messages.value : [{ role: 'assistant', content: WELCOME_TEXT }],
+)
+
+// 侧栏按更新时间倒序（最近聊过的在最上）
+const sortedSessions = computed(() =>
+  [...chatStore.sessions].sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1)),
+)
+
+// chats: 会话搜索——只按标题匹配，大小写不敏感；没关键词时等于原列表
+const isSearching = ref(false)
+const searchKeyword = ref('')
+const searchInputRef = ref<HTMLInputElement | null>(null)
+
+const filteredSessions = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase()
+  if (!kw) return sortedSessions.value
+  return sortedSessions.value.filter((s) => s.title.toLowerCase().includes(kw))
+})
+
+function openSearch() {
+  isSearching.value = true
+  // 等输入框渲染出来再聚焦，否则 ref 还是 null
+  nextTick(() => searchInputRef.value?.focus())
 }
 
-const messages = ref<Message[]>([
-  // chats: 开场白只留一条 AI 欢迎语——原来「用户你好我是用户 + AI 回话」两条假消息是早期占位，不像真实对话
-  {
-    role: 'assistant',
-    content: '我是你的本地知识助手。上传或选择资料后，我可以基于本地内容回答问题。',
-  },
-])
+function closeSearch() {
+  isSearching.value = false
+  searchKeyword.value = ''
+}
+
+function startNewChat() {
+  chatStore.createSession()
+}
+
+function switchSession(id: string) {
+  // 流式输出中切换也没事：流会继续写进原来那个会话（currentAssistantMessage 还指着那边）
+  chatStore.activeId = id
+  currentAssistantMessage = null
+  // chats: 搜索是「找 → 点」的一次性流程，点中即完成——回到标题行，关键词一并清掉
+  if (isSearching.value) closeSearch()
+}
+
+function removeSession(id: string) {
+  chatStore.deleteSession(id)
+}
 
 const inputText = ref('')
 const isLoading = ref(false)
 const messageListRef = ref<HTMLElement | null>(null)
+
+// chats: 「正在思考」只在还没等到首字时显示。首字一到列表里就有真实 AI 消息了，
+// 动画再挂着就会出现「气泡 + 思考中」叠在一起的怪状态
+const showThinking = computed(() => {
+  const last = messages.value[messages.value.length - 1]
+  return isLoading.value && (!last || last.role === 'user')
+})
+
+// chats: markdown 渲染器单例，页面整个生命周期共用一个实例
+// breaks:true = 单个换行也断行（聊天场景习惯）；html:false = 模型输出里的 HTML 标签按纯文本转义，防注入
+const md = new MarkdownIt({ breaks: true, html: false, linkify: false })
+
+function renderMarkdown(text: string): string {
+  return md.render(text || '')
+}
 
 // 知识库数据：sendMessage 时拼进系统提示词，让 AI 基于本地资料作答
 const knowledgeStore = useKnowledgeStore()
@@ -174,21 +288,19 @@ function buildFocusContext(item: KnowledgeItem): string {
   return lines.join('\n')
 }
 
-// 当前的 AI 回复消息（用于增量更新）
-let currentAssistantMessage: Message | null = null
+// 当前的 AI 回复消息（指向 store 会话里那条，流式期间原地累加内容）
+let currentAssistantMessage: ChatMessage | null = null
 
 async function sendMessage() {
   const text = inputText.value.trim()
   if (!text || isLoading.value) return
 
-  // 添加用户消息
-  messages.value.push({ role: 'user', content: text })
+  // chats: 会话在首条用户消息时才真正创建（store 的 ensureActiveSession 兜底），
+  // 标题自动取这条消息的前 20 个字
+  chatStore.appendMessage({ role: 'user', content: text })
   inputText.value = ''
   scrollToBottom()
 
-  // 创建 AI 回复占位
-  currentAssistantMessage = { role: 'assistant', content: '' }
-  messages.value.push(currentAssistantMessage)
   isLoading.value = true
 
   // 构建知识库上下文
@@ -223,14 +335,24 @@ async function sendMessage() {
     history,
     // onChunk: 增量接收
     (chunk) => {
+      // 首字到达才把 AI 消息写进 store（等待期由 isLoading 的「正在思考」节点负责）
+      if (!currentAssistantMessage) {
+        chatStore.appendMessage({ role: 'assistant', content: '' })
+        currentAssistantMessage = messages.value[messages.value.length - 1] ?? null
+      }
       if (currentAssistantMessage) {
         currentAssistantMessage.content += chunk
-        // 实时滚动
         scrollToBottom()
       }
     },
     // onComplete
     () => {
+      // 🔧 修复：AI 一个字都没吐时（思考占满额度），就地写提示而不是留空气泡
+      if (currentAssistantMessage && !currentAssistantMessage.content) {
+        currentAssistantMessage.content = '（AI 没有返回内容，可能是思考占满了输出上限，请重试）'
+      }
+      // chats: 流式期间不落盘，回合结束整体写一次 localStorage
+      chatStore.persistActive()
       isLoading.value = false
       currentAssistantMessage = null
       scrollToBottom()
@@ -238,9 +360,16 @@ async function sendMessage() {
     // onError
     (error) => {
       console.error('AI 回复失败:', error)
+      // 🔧 修复：错误发生在首字之前时原先什么都不显示（没有消息可写错误），
+      // 现在就地创建一条错误消息，保证失败原因永远可见
+      if (!currentAssistantMessage) {
+        chatStore.appendMessage({ role: 'assistant', content: '' })
+        currentAssistantMessage = messages.value[messages.value.length - 1] ?? null
+      }
       if (currentAssistantMessage) {
         currentAssistantMessage.content = `❌ 出错了：${error.message}。请检查 API Key 或网络连接。`
       }
+      chatStore.persistActive()
       isLoading.value = false
       currentAssistantMessage = null
       scrollToBottom()
@@ -258,20 +387,188 @@ function scrollToBottom() {
 </script>
 
 <style scoped>
-/* chats: /chat 走 content--flush（App.vue padding:0），这里自己顶格铺满整屏；整页用卡片同款白底 */
+/* chats: 容器改横向布局——左侧历史侧栏 + 右侧对话主区。
+   position:relative 是历史抽屉的定位锚：抽屉用 absolute 浮在对话区上，不占布局空间 */
 .chat-container {
+  position: relative;
   display: flex;
-  flex-direction: column;
   height: 100vh;
   background: var(--color-bg-white);
 }
 
-/* 顶部标题栏：白底 + 底部细线，顶格通栏（内边距自己给，因为内容区 padding 已归零） */
+.chat-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 历史侧栏改为「抽屉」：absolute 浮在对话区上方（锚是 .chat-container），
+   从顶栏下缘垂到页底，只遮挡不挤压——消息区和输入条都不会被推走。
+   top 必须和 .chat-header 的高度一致，否则会盖住顶栏或露出缝。
+   gap 收成 2px：首条对齐位 = padding 8 + 顶行高 22 + gap 2 = 32px，与原配平一致
+   （顶行从 16 变 22 是因为多了图标按钮，两处高度联动，改一处要连带看） */
+.history-panel {
+  position: absolute;
+  top: 52px;
+  left: 0;
+  bottom: 0;
+  width: 160px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--spacing-sm);
+  border-right: 1px solid var(--color-border);
+  background: var(--color-bg-hover);
+  box-shadow: var(--shadow-md);
+}
+
+/* chats: 抽屉顶行——节标题居左 + 搜索/收起幽灵按钮居右（DeepSeek 同款布局）。
+   高度写死 22px 参与首条对齐配平 */
+.history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 22px;
+}
+
+.history-caption {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  padding: 0 10px;
+}
+
+/* 幽灵图标按钮：平时只有图标，hover 浮出底色——和侧边栏 hover 同一档色 */
+.history-actions {
+  display: flex;
+  gap: 2px;
+}
+.history-icon-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+.history-icon-btn:hover {
+  background: var(--color-bg-border);
+  color: var(--color-text);
+}
+
+/* 搜索态：顶行整体换成过滤输入框，高度与按钮行一致，切换不跳动 */
+.history-search {
+  height: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-white);
+  padding: 0 8px;
+  font-size: var(--font-size-xs);
+  color: var(--color-text);
+  outline: none;
+}
+.history-search:focus {
+  border-color: var(--color-primary);
+}
+.history-search::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.new-chat-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-white);
+  border-radius: var(--radius-md);
+  padding: 8px;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+.new-chat-btn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-dark);
+}
+
+.history-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 10px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.history-item:hover {
+  background: var(--color-bg-border);
+}
+.history-item.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.history-title {
+  /* chats: 标题色不在这里定——跟随 .history-item 的颜色（普通态深色 / 选中态主色），
+     直接写在元素上会压过父级继承，导致「选中变蓝」失效 */
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 删除键默认隐藏，hover 条目才出现，避免一排 × 干扰视线 */
+.history-del {
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 4px;
+  visibility: hidden;
+}
+.history-item:hover .history-del {
+  visibility: visible;
+}
+.history-del:hover {
+  color: var(--color-danger);
+}
+
+.history-empty {
+  color: var(--color-text-placeholder);
+  font-size: var(--font-size-xs);
+  text-align: center;
+  padding: 12px 0;
+}
+
+/* 顶部标题栏：白底 + 底部细线，顶格通栏（内边距自己给，因为内容区 padding 已归零）。
+   高度写死 52px：历史抽屉的 top 靠它对齐，两边必须一处定、一处跟 */
 .chat-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--spacing-md) var(--spacing-lg);
+  height: 52px;
+  padding: 0 var(--spacing-lg);
   border-bottom: 1px solid var(--color-border);
   background: var(--color-bg-white);
   font-size: var(--font-size-sm);
@@ -395,6 +692,56 @@ function scrollToBottom() {
 .message.assistant .message-content {
   background: var(--color-bg-hover);
   border: 1px solid var(--color-border);
+}
+
+/* chats: AI 气泡内的 markdown 元素排版——v-html 注入的内容不在 scoped 作用域里，
+   必须用 :deep() 才能命中。strong 要显式加粗：global.css 的 * { font-weight: normal }
+   会压掉标签默认字重，这是本项目已知的坑 */
+.message-content.md :deep(p) {
+  margin: 0 0 6px;
+}
+.message-content.md :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.message-content.md :deep(ul),
+.message-content.md :deep(ol) {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+.message-content.md :deep(li) {
+  margin-bottom: 2px;
+}
+.message-content.md :deep(strong) {
+  font-weight: 600;
+}
+.message-content.md :deep(h1),
+.message-content.md :deep(h2),
+.message-content.md :deep(h3),
+.message-content.md :deep(h4) {
+  font-weight: 600;
+  font-size: var(--font-size-md);
+  margin: 8px 0 4px;
+}
+.message-content.md :deep(code) {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-mono, Consolas, monospace);
+}
+.message-content.md :deep(pre) {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 6px 0;
+}
+.message-content.md :deep(pre code) {
+  background: none;
+  border: none;
+  padding: 0;
 }
 
 .message.user .message-content {

@@ -1,9 +1,13 @@
 <template>
-  <div class="pdf-view">
-    <h2>PDF阅读器</h2>
-
+  <!-- chats: 2026-10-10 用户定稿——PDF 页不要页头，阅读器自己就是一整页 -->
+  <!-- chats: reading 态 = 已加载 PDF，页面切暗色读书模式（样式区 .pdf-view.reading) -->
+  <div class="pdf-view" :class="{ reading: !!pdfUrl }">
     <!-- 工具栏 -->
+    <!-- chats: 工具栏改竖排圆形图标栏（2026-10-10 参考读书站右侧圆钮）——
+         保留可拖动（顶部手柄圆钮）与可隐藏（末尾收起钮，隐藏后右侧浮标唤回）。
+         图标只表意，悬停 title 给文字提示；active 靠底色高亮 -->
     <div
+      v-show="!railHidden"
       class="toolbar"
       :style="{
         left: toolbarPosition.x + 'px',
@@ -14,84 +18,144 @@
       @mouseup="endDrag"
       @mouseleave="endDrag"
     >
-      <!-- 拖动手柄（显示一个图标） -->
-      <label class="toolbar-drag-handle" title="拖动移动工具栏">☰</label>
+      <label class="toolbar-drag-handle" title="拖动移动工具栏"
+        ><GripHorizontal :size="16"
+      /></label>
 
-      <label class="upload-btn">
-        上传PDF文件
+      <label class="rail-btn upload-btn" title="上传PDF文件">
+        <FileUp :size="18" />
         <input type="file" accept="application/pdf" @change="handleFileUpload" />
       </label>
-      <span class="divider">|</span>
 
-      <!-- 缩放控制 -->
-      <span class="divider">|</span>
+      <button class="rail-btn" title="缩小" @click="zoomOut"><ZoomOut :size="18" /></button>
+      <span class="zoom-display" title="当前缩放">{{ Math.round(scaleFactor * 100) }}%</span>
+      <button class="rail-btn" title="放大" @click="zoomIn"><ZoomIn :size="18" /></button>
+      <button class="rail-btn" title="适应宽度" @click="resetZoom"><Maximize :size="18" /></button>
 
-      <button class="tool-btn" @click="zoomOut">−</button>
-      <span class="zoom-display">{{ Math.round(scaleFactor * 100) }}%</span>
-      <button class="tool-btn" @click="zoomIn">+</button>
-      <button class="tool-btn" @click="resetZoom">⟲ 适应</button>
-      <!-- 工具切换 -->
-      <button class="tool-btn" :class="{ active: currentTool === 'hand' }" @click="setTool('hand')">
-        ✋ 抓手
+      <!-- chats: 阅读版式切换（2026-10-10 用户要求：左右双页 / 竖向单页可选） -->
+      <button
+        class="rail-btn"
+        :class="{ active: viewMode === 'double' }"
+        title="左右双页"
+        @click="setViewMode('double')"
+      >
+        <BookOpen :size="18" />
       </button>
       <button
-        class="tool-btn"
+        class="rail-btn"
+        :class="{ active: viewMode === 'single' }"
+        title="竖向单页"
+        @click="setViewMode('single')"
+      >
+        <FileText :size="18" />
+      </button>
+
+      <button
+        class="rail-btn"
+        :class="{ active: currentTool === 'hand' }"
+        title="抓手（拖动页面）"
+        @click="setTool('hand')"
+      >
+        <Hand :size="18" />
+      </button>
+      <button
+        class="rail-btn"
         :class="{ active: currentTool === 'select' }"
+        title="选择"
         @click="setTool('select')"
       >
-        🖱️ 选择
+        <MousePointer2 :size="18" />
       </button>
       <button
-        class="tool-btn"
+        class="rail-btn"
         :class="{ active: currentTool === 'highlight' }"
+        title="高亮"
         @click="setTool('highlight')"
       >
-        🟡 高亮
+        <Highlighter :size="18" />
       </button>
       <button
-        class="tool-btn"
+        class="rail-btn"
         :class="{ active: currentTool === 'underline' }"
+        title="下划线"
         @click="setTool('underline')"
       >
-        🔽 下划线
+        <Underline :size="18" />
       </button>
       <button
-        class="tool-btn"
+        class="rail-btn"
         :class="{ active: currentTool === 'rectangle' }"
+        title="矩形"
         @click="setTool('rectangle')"
       >
-        ⬜ 矩形
+        <Square :size="18" />
       </button>
 
-      <span class="divider">|</span>
+      <button class="rail-btn" title="清除标注" @click="clearAnnotations">
+        <Eraser :size="18" />
+      </button>
+      <button class="rail-btn" title="保存标注" @click="saveAnnotations">
+        <Save :size="18" />
+      </button>
+      <button class="rail-btn" title="加载标注" @click="loadAnnotations">
+        <FolderOpen :size="18" />
+      </button>
 
-      <button class="tool-btn" @click="clearAnnotations">清除标注</button>
-      <button class="tool-btn" @click="saveAnnotations">保存</button>
-      <button class="tool-btn" @click="loadAnnotations">加载</button>
+      <button class="rail-btn rail-hide" title="隐藏工具栏" @click="railHidden = true">
+        <ChevronRight :size="18" />
+      </button>
     </div>
 
-    <!-- 显示页数和翻页按钮 -->
-    <div v-if="pdfUrl" class="page-controls">
-      <button @click="prevPage" :disabled="currentPage <= 1">上一页</button>
-      <span>第 {{ currentPage }} 页 / 共 {{ totalPages }} 页</span>
-      <button @click="nextPage" :disabled="currentPage === totalPages">下一页</button>
-    </div>
+    <!-- 工具栏隐藏后的唤回浮标（贴右侧居中） -->
+    <button v-if="railHidden" class="rail-fab" title="显示工具栏" @click="railHidden = false">
+      <Wrench :size="18" />
+    </button>
 
-    <!-- PDF 渲染容器：没上传时不渲染这个带边框的空 box，只显示下方占位提示 -->
+    <!-- PDF 渲染容器：没上传时不渲染这个空 box，只显示下方占位提示。
+         chats: 翻页控制挪进容器内 sticky 贴底（2026-10-10 参考读书站样式），
+         阅读区整体暗色化（.pdf-view.reading，见样式区） -->
     <div v-if="pdfUrl" class="pdf-container" ref="containerRef">
-      <div class="pdf-wrapper" ref="wrapperRef">
-        <canvas ref="canvasRef"></canvas>
-        <!-- 标注图层（透明 Canvas 覆盖在上层） -->
-        <canvas
-          ref="annotationCanvasRef"
-          class="annotation-layer"
-          @mousedown="onMouseDown"
-          @mousemove="onMouseMove"
-          @mouseup="onMouseUp"
-          @mouseleave="onMouseUp"
-        ></canvas>
+      <div class="pdf-wrapper" ref="wrapperRef" :class="{ double: viewMode === 'double' }">
+        <div class="page-slot">
+          <canvas ref="canvasRef"></canvas>
+          <!-- 标注图层（透明 Canvas 覆盖在上层） -->
+          <canvas
+            ref="annotationCanvasRef"
+            class="annotation-layer"
+            @mousedown="onMouseDown"
+            @mousemove="onMouseMove"
+            @mouseup="onMouseUp"
+            @mouseleave="onMouseUp"
+          ></canvas>
+        </div>
+        <!-- chats: 左右双页的 B 槽——渲染当前页的下一页（2026-10-10 用户要求可切换版式） -->
+        <div v-if="viewMode === 'double' && currentPage < totalPages" class="page-slot">
+          <canvas ref="canvasRefB"></canvas>
+          <canvas
+            ref="annotationCanvasRefB"
+            class="annotation-layer"
+            @mousedown="onMouseDown"
+            @mousemove="onMouseMove"
+            @mouseup="onMouseUp"
+            @mouseleave="onMouseUp"
+          ></canvas>
+        </div>
       </div>
-      <div v-if="isLoading" class="loading">⏳ 加载中...</div>
+      <div v-if="isLoading" class="loading"><span class="spinner"></span></div>
+
+      <!-- 翻页：sticky 贴容器底部，长页面滚动时也悬在可见区 -->
+      <div class="page-controls">
+        <button class="page-btn" @click="prevPage" :disabled="currentPage <= 1">‹ 上一页</button>
+        <span class="page-indicator">
+          第 {{ currentPage }}<template v-if="viewMode === 'double' && currentPage < totalPages"
+            >–{{ currentPage + 1 }}</template
+          >
+          页 / 共 {{ totalPages }} 页
+        </span>
+        <button class="page-btn" @click="nextPage" :disabled="currentPage === totalPages">
+          下一页 ›
+        </button>
+      </div>
     </div>
 
     <!-- 未上传时的提示 -->
@@ -106,6 +170,26 @@
 import { nextTick, onBeforeUnmount, onMounted, ref, shallowRef } from 'vue'
 // 新增：PDF 中转 store，用来接收从知识库详情页传过来的 PDF
 import { usePDFStore } from '@/stores/PDFStore'
+// chats: 工具栏图标（竖排圆钮栏，2026-10-10）——拖动手柄 + 功能圆钮 + 收起/唤回
+import {
+  BookOpen,
+  ChevronRight,
+  Eraser,
+  FileText,
+  FileUp,
+  FolderOpen,
+  GripHorizontal,
+  Hand,
+  Highlighter,
+  Maximize,
+  MousePointer2,
+  Save,
+  Square,
+  Underline,
+  Wrench,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-vue-next'
 // pdfjsLib 负责解析 PDF，worker 用于将解析工作放到独立线程中执行。
 import * as pdfjsLib from 'pdfjs-dist'
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
@@ -140,6 +224,12 @@ const canvasRef = ref<HTMLCanvasElement | null>(null)
 const annotationCanvasRef = ref<HTMLCanvasElement | null>(null)
 const containerRef = ref<HTMLElement | null>(null)
 const wrapperRef = ref<HTMLElement | null>(null)
+// chats: 左右双页版式的 B 槽画布（2026-10-10）——A 槽显示 currentPage，B 槽显示 currentPage+1。
+// 标注按页码存在 Map 里，所以版式切换不需要动标注数据结构
+const canvasRefB = ref<HTMLCanvasElement | null>(null)
+const annotationCanvasRefB = ref<HTMLCanvasElement | null>(null)
+// 阅读版式：single 竖向单页 / double 左右双页
+const viewMode = ref<'single' | 'double'>('single')
 
 // 平移偏移量（用于抓手工具）
 const translateX = ref(0)
@@ -151,16 +241,19 @@ let dragStartY = 0
 let dragStartTranslateX = 0
 let dragStartTranslateY = 0
 
-// 工具栏位置（默认右上角）
+// 工具栏位置（默认右侧停靠）
 const toolbarPosition = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
 const dragOffset = ref({ x: 0, y: 0 })
+// chats: 工具栏可隐藏（2026-10-10 用户要求保留可拖动 + 可隐藏）——
+// 隐藏后由右缘浮标 .rail-fab 唤回
+const railHidden = ref(false)
 
 onMounted(async () => {
-  // 初始位置：右上角
+  // 初始位置：贴屏幕右上角（右缘与顶部都只留 4px 防裁切余量）
   toolbarPosition.value = {
-    x: window.innerWidth - 260, // 假设工具栏宽度约 240px
-    y: 80,
+    x: window.innerWidth - 60,
+    y: 4,
   }
 
   // 从知识库详情页点「阅读」进来时，这里取到待打开的 PDF。
@@ -196,11 +289,11 @@ function clampPosition() {
   const toolbarEl = document.querySelector('.toolbar') as HTMLElement
   if (!toolbarEl) return
   const rect = toolbarEl.getBoundingClientRect()
-  const maxX = window.innerWidth - rect.width - 10
-  const maxY = window.innerHeight - rect.height - 10
+  const maxX = window.innerWidth - rect.width - 4 // chats: 贴右缘（2026-10-10 用户要求），只留防裁切余量
+  const maxY = window.innerHeight - rect.height - 4 // chats: 顶部同理贴合（2026-10-10 用户要求）
   toolbarPosition.value = {
-    x: Math.max(10, Math.min(toolbarPosition.value.x, maxX)),
-    y: Math.max(10, Math.min(toolbarPosition.value.y, maxY)),
+    x: Math.max(4, Math.min(toolbarPosition.value.x, maxX)),
+    y: Math.max(4, Math.min(toolbarPosition.value.y, maxY)),
   }
 }
 
@@ -257,6 +350,7 @@ const annotations = ref<Map<number, Annotation[]>>(new Map())
 
 // 绘图状态
 let isDrawing = false
+let drawingPage = 1 // 正在绘制的页码（双页模式下可能画在 B 槽那一页，不能写死 currentPage）
 let startX = 0
 let startY = 0
 let currentAnnotation: Annotation | null = null
@@ -271,15 +365,11 @@ const currentPageAnnotations = ref<Annotation[]>([])
 function setTool(tool: 'hand' | 'select' | 'highlight' | 'underline' | 'rectangle') {
   // 保存当前工具，让模板和鼠标事件都能使用同一份状态。
   currentTool.value = tool
-  const canvas = annotationCanvasRef.value
-  if (!canvas) return
 
-  if (tool === 'hand') {
-    canvas.style.cursor = 'grab'
-  } else if (tool === 'select') {
-    canvas.style.cursor = 'default'
-  } else {
-    canvas.style.cursor = 'crosshair'
+  // chats: 双页版式下两个槽的标注层都要换光标（2026-10-10），B 槽可能未挂载
+  const cursor = tool === 'hand' ? 'grab' : tool === 'select' ? 'default' : 'crosshair'
+  for (const c of [annotationCanvasRef.value, annotationCanvasRefB.value]) {
+    if (c) c.style.cursor = cursor
   }
 }
 
@@ -323,13 +413,17 @@ async function loadPDF(url: string) {
 }
 
 //--------渲染指定页码的PDF--------
-async function renderPage(pageNum: number) {
-  if (!pdfDoc.value || !canvasRef.value || !annotationCanvasRef.value) return //确保PDF文档和Canvas存在
+// chats: 双页版式重构（2026-10-10）——把「算缩放 + 画到某组 canvas」抽成 renderPageTo，
+// renderPage 只负责决定渲染哪些槽：单页只有 A 槽（currentPage），双页再加 B 槽（currentPage+1）
+async function renderPageTo(
+  canvas: HTMLCanvasElement,
+  annCanvas: HTMLCanvasElement,
+  pageNum: number,
+) {
+  if (!pdfDoc.value) return
 
   // getPage 是异步操作，因为 PDF.js 可能还需要从文件中读取该页的数据。
   const page = await pdfDoc.value.getPage(pageNum)
-  const canvas = canvasRef.value
-  const annCanvas = annotationCanvasRef.value
   const context = canvas.getContext('2d')
   const annContext = annCanvas.getContext('2d')
   if (!context || !annContext) return
@@ -369,8 +463,29 @@ async function renderPage(pageNum: number) {
     viewport: scaledViewport,
   }).promise
 
-  // 渲染标注
-  renderAnnotations(annContext, scaledViewport.width, scaledViewport.height)
+  // 渲染标注（注意传本槽的页码，双页模式下 B 槽是另一页）
+  renderAnnotations(annContext, scaledViewport.width, scaledViewport.height, pageNum)
+}
+
+async function renderPage(pageNum: number) {
+  if (!pdfDoc.value || !canvasRef.value || !annotationCanvasRef.value) return //确保PDF文档和Canvas存在
+  await renderPageTo(canvasRef.value, annotationCanvasRef.value, pageNum)
+
+  // 双页模式且有下一页时，B 槽渲染下一页（模板里 B 槽的 v-if 与此条件保持一致）
+  if (viewMode.value === 'double' && pageNum < totalPages.value) {
+    if (canvasRefB.value && annotationCanvasRefB.value) {
+      await renderPageTo(canvasRefB.value, annotationCanvasRefB.value, pageNum + 1)
+    }
+  }
+}
+
+// chats: 切换阅读版式（2026-10-10 用户要求）——
+// 切到双页要等 B 槽的 canvas 真正挂载到 DOM 后才能画，所以先 nextTick 再渲染
+async function setViewMode(mode: 'single' | 'double') {
+  if (viewMode.value === mode) return
+  viewMode.value = mode
+  await nextTick()
+  await renderPage(currentPage.value)
 }
 
 //添加缩放控制函数
@@ -393,16 +508,19 @@ function resetZoom() {
 }
 
 // ---------- 标注渲染 ----------
+// chats: 加了 page 参数（2026-10-10 双页版式）——A 槽画 currentPage，B 槽画 currentPage+1，
+// 默认值兜底单页场景
 function renderAnnotations(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
   canvasHeight: number,
+  page: number = currentPage.value,
 ) {
   // 标注 Canvas 只负责绘制标注，因此每次绘制前先清空旧内容。
   ctx.clearRect(0, 0, canvasWidth, canvasHeight)
 
-  const pageAnnotations = annotations.value.get(currentPage.value) || []
-  currentPageAnnotations.value = pageAnnotations
+  const pageAnnotations = annotations.value.get(page) || []
+  if (page === currentPage.value) currentPageAnnotations.value = pageAnnotations
 
   for (const ann of pageAnnotations) {
     // 标注保存的是 0 到 1 之间的比例，渲染时根据当前 Canvas 尺寸还原为像素坐标。
@@ -434,9 +552,17 @@ function renderAnnotations(
 }
 
 // ---------- Canvas 事件（绘制标注） ----------
-function getCanvasCoords(e: MouseEvent): { x: number; y: number } | null {
-  const canvas = annotationCanvasRef.value
-  if (!canvas) return null
+// chats: 双页模式下鼠标可能落在 A 槽或 B 槽（2026-10-10）——
+// 用触发元素的身份反查是哪个槽，进而得到本槽页码和标注 canvas，不用改模板传参
+function getSlot(e: MouseEvent) {
+  const isB = e.currentTarget === annotationCanvasRefB.value
+  return {
+    page: isB ? currentPage.value + 1 : currentPage.value,
+    annCanvas: (isB ? annotationCanvasRefB : annotationCanvasRef).value,
+  }
+}
+
+function getCanvasCoords(e: MouseEvent, canvas: HTMLCanvasElement): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect()
   // CSS 尺寸和 Canvas 实际像素尺寸可能不同，需要分别计算横向和纵向的换算比例。
   const scaleX = canvas.width / rect.width
@@ -448,25 +574,27 @@ function getCanvasCoords(e: MouseEvent): { x: number; y: number } | null {
 }
 
 function onMouseDown(e: MouseEvent) {
+  const slot = getSlot(e)
+
   if (currentTool.value === 'hand') {
     isDragging.value = true
     dragStartX = e.clientX
     dragStartY = e.clientY
     dragStartTranslateX = translateX.value
     dragStartTranslateY = translateY.value
-    annotationCanvasRef.value!.style.cursor = 'grabbing'
+    // 抓手拖动作用于整个 wrapper（平移偏移量），与具体哪个槽无关
+    if (slot.annCanvas) slot.annCanvas.style.cursor = 'grabbing'
     return
   }
 
-  const coords = getCanvasCoords(e)
-  if (!coords) return
+  const canvas = slot.annCanvas
+  if (!canvas) return
 
+  const coords = getCanvasCoords(e, canvas)
   isDrawing = true
+  drawingPage = slot.page // chats: 记下画在哪个槽的页，后续 move/up 都按这页处理
   startX = coords.x
   startY = coords.y
-
-  const canvas = annotationCanvasRef.value
-  if (!canvas) return
   const w = canvas.width
   const h = canvas.height
 
@@ -474,7 +602,7 @@ function onMouseDown(e: MouseEvent) {
   currentAnnotation = {
     id: Date.now().toString() + Math.random().toString(36).slice(2, 6),
     type: currentTool.value as 'highlight' | 'underline' | 'rectangle',
-    page: currentPage.value,
+    page: slot.page,
     x: startX / w,
     y: startY / h,
     width: 0,
@@ -498,11 +626,10 @@ function onMouseMove(e: MouseEvent) {
   if (currentTool.value === 'select' || !isDrawing || !currentAnnotation) return
 
   // 3. 以下是绘图逻辑（高亮、下划线、矩形）
-  const coords = getCanvasCoords(e)
-  if (!coords) return
-
-  const canvas = annotationCanvasRef.value
+  const canvas = getSlot(e).annCanvas
   if (!canvas) return
+
+  const coords = getCanvasCoords(e, canvas)
   const w = canvas.width
   const h = canvas.height
 
@@ -517,24 +644,28 @@ function onMouseMove(e: MouseEvent) {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  const allAnnotations = [...(annotations.value.get(currentPage.value) || [])]
+  // chats: 原地预览——把「本页已有标注 + 正在画的这条」临时渲染出来，
+  // 不动 annotations.value 本体（画完 mouseup 才正式入表）
+  const allAnnotations = [...(annotations.value.get(drawingPage) || [])]
   const filtered = allAnnotations.filter((a) => a.id !== currentAnnotation!.id)
   const tempAnnotations = [...filtered, currentAnnotation]
 
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   const tempMap = new Map()
-  tempMap.set(currentPage.value, tempAnnotations)
+  tempMap.set(drawingPage, tempAnnotations)
   const savedMap = annotations.value
   annotations.value = tempMap
-  renderAnnotations(ctx, canvas.width, canvas.height)
+  renderAnnotations(ctx, canvas.width, canvas.height, drawingPage)
   annotations.value = savedMap
 }
 
 function onMouseUp(e: MouseEvent) {
+  const slot = getSlot(e)
+
   // 抓手工具处理
   if (currentTool.value === 'hand') {
     isDragging.value = false
-    annotationCanvasRef.value!.style.cursor = 'grab'
+    if (slot.annCanvas) slot.annCanvas.style.cursor = 'grab'
     return
   }
 
@@ -544,7 +675,7 @@ function onMouseUp(e: MouseEvent) {
   }
 
   // 检查是否有效（至少 5px）
-  const minSize = 5 / (annotationCanvasRef.value?.width || 1000)
+  const minSize = 5 / (slot.annCanvas?.width || 1000)
   if (currentAnnotation.width < minSize && currentAnnotation.height < minSize) {
     isDrawing = false
     currentAnnotation = null
@@ -553,9 +684,9 @@ function onMouseUp(e: MouseEvent) {
     return
   }
 
-  // 鼠标释放后，只有尺寸有效的标注才会正式保存到当前页。
-  // 保存标注
-  const page = currentPage.value
+  // 鼠标释放后，只有尺寸有效的标注才会正式保存到「开始绘制的那一页」。
+  // chats: 双页版式下用 drawingPage 而不是 currentPage（可能画在 B 槽）
+  const page = drawingPage
   if (!annotations.value.has(page)) {
     annotations.value.set(page, [])
   }
@@ -572,11 +703,27 @@ function onMouseUp(e: MouseEvent) {
 }
 
 function refreshAnnotations() {
-  const canvas = annotationCanvasRef.value
-  if (!canvas) return
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  renderAnnotations(ctx, canvas.width, canvas.height)
+  // chats: 双页模式下两个槽各刷各的页（2026-10-10）——B 槽在单页模式或最后一页时不存在
+  if (annotationCanvasRef.value) {
+    const ctx = annotationCanvasRef.value.getContext('2d')
+    if (ctx)
+      renderAnnotations(
+        ctx,
+        annotationCanvasRef.value.width,
+        annotationCanvasRef.value.height,
+        currentPage.value,
+      )
+  }
+  if (viewMode.value === 'double' && annotationCanvasRefB.value) {
+    const ctx = annotationCanvasRefB.value.getContext('2d')
+    if (ctx)
+      renderAnnotations(
+        ctx,
+        annotationCanvasRefB.value.width,
+        annotationCanvasRefB.value.height,
+        currentPage.value + 1,
+      )
+  }
 }
 
 function loadAnnotationsForPage(page: number) {
@@ -611,7 +758,11 @@ function loadAnnotations() {
 
 function clearAnnotations() {
   // 标注按页保存，因此清除操作只影响当前正在查看的页面。
+  // chats: 双页版式下一屏有两页，两页的标注一起清（2026-10-10）
   annotations.value.delete(currentPage.value)
+  if (viewMode.value === 'double') {
+    annotations.value.delete(currentPage.value + 1)
+  }
   currentPageAnnotations.value = []
   refreshAnnotations()
 }
@@ -651,6 +802,22 @@ onBeforeUnmount(() => {
 
 // 监听窗口变化，使 PDF 阅读器能够响应式调整页面大小。
 window.addEventListener('resize', handleResize)
+
+// chats: 方向键翻页（2026-10-10 用户要求）——← = 上一页，→ = 下一页。
+// 两个让路条件：焦点在输入框（箭头要移光标）、PDF 还没加载（没页可翻）。
+// 注：标注绘制用鼠标，方向键不会和绘图冲突
+function handleKeydown(e: KeyboardEvent) {
+  if (!pdfUrl.value) return
+  const target = e.target as HTMLElement | null
+  if (target?.closest('input, textarea, [contenteditable]')) return
+  if (e.key === 'ArrowLeft' && currentPage.value > 1) {
+    prevPage()
+  } else if (e.key === 'ArrowRight' && currentPage.value < totalPages.value) {
+    nextPage()
+  }
+}
+window.addEventListener('keydown', handleKeydown)
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 </script>
 
 <style scoped>
@@ -660,18 +827,19 @@ window.addEventListener('resize', handleResize)
   padding: var(--spacing-md);
 }
 
+/* chats: 竖排圆形图标栏（2026-10-10 参考读书站右侧圆钮）——白卡圆轨，可拖动可隐藏 */
 .toolbar {
   position: fixed;
   z-index: 1000;
-  background: var(--color-bg-white);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
-  padding: var(--spacing-sm) 12px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--spacing-sm);
-  flex-wrap: wrap;
+  gap: 6px;
+  padding: 10px 8px;
+  background: var(--color-bg-white);
   border: 1px solid var(--color-border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-lg);
   user-select: none;
   cursor: default;
   /* 初始位置由 style 控制 */
@@ -680,38 +848,83 @@ window.addEventListener('resize', handleResize)
 .toolbar-drag-handle {
   cursor: grab;
   color: var(--color-text-placeholder);
-  padding: 0 6px;
-  font-size: var(--font-size-sm);
-  letter-spacing: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 24px;
+  border-radius: 999px;
   user-select: none;
 }
 .toolbar-drag-handle:hover {
   color: var(--color-text);
+  background: var(--color-bg-hover);
 }
 .toolbar-drag-handle:active {
   cursor: grabbing;
 }
 
-.upload-btn {
-  display: inline-block;
-  padding: var(--spacing-sm) var(--spacing-md);
+/* chats: 圆形图标按钮——icon 只表意，文字提示走 title；active 主色浅底 */
+.rail-btn {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+.rail-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+.rail-btn.active {
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+}
+/* 上传圆钮：栏里的主操作，主色实心 */
+.rail-btn.upload-btn {
   background: var(--color-primary);
   color: #fff;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--font-size-md);
-  transition: background var(--transition-fast);
 }
-.upload-btn:hover {
+.rail-btn.upload-btn:hover {
   background: var(--color-primary-hover);
 }
-.upload-btn input {
+.rail-btn.upload-btn input {
   display: none;
 }
+.rail-hide {
+  margin-top: 2px;
+}
 
-.divider {
-  color: var(--color-divider);
-  margin: 0 var(--spacing-xs);
+/* 工具栏隐藏后的唤回浮标：贴右侧居中 */
+.rail-fab {
+  position: fixed;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1000;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  background: var(--color-bg-white);
+  box-shadow: var(--shadow-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.rail-fab:hover {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
 }
 
 .pdf-wrapper {
@@ -721,39 +934,15 @@ window.addEventListener('resize', handleResize)
   transition: transform var(--transition-fast); /* 可选：让拖拽更平滑 */
 }
 
-.tool-btn {
-  padding: 6px 14px;
-  border: 2px solid transparent;
-  border-radius: var(--radius-md);
-  background: var(--color-bg-white);
-  cursor: pointer;
-  font-size: var(--font-size-md);
-  transition: all var(--transition-normal);
-}
-.tool-btn:hover {
-  background: var(--color-bg-hover);
-}
-.tool-btn.active {
-  border-color: var(--color-primary);
-  background: var(--color-bg-primary);
-}
-
-.page-controls {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  margin: var(--spacing-sm) 0;
-}
-.page-controls button {
-  padding: 6px var(--spacing-md);
-  border: 1px solid var(--color-border);
+.zoom-display {
+  min-width: 40px;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  color: var(--color-text);
+  background: var(--color-bg);
+  padding: 2px 0;
   border-radius: var(--radius-sm);
-  background: var(--color-bg-white);
-  cursor: pointer;
-}
-.page-controls button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 /* ====== 关键修复：PDF 容器 ====== */
@@ -764,9 +953,58 @@ window.addEventListener('resize', handleResize)
   background: var(--color-bg);
   min-height: 500px;
   padding: var(--spacing-md);
+  /* chats: 改纵向 flex——wrapper 居中，page-controls 靠 margin-top:auto 贴底 */
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* chats: 暗色阅读模式（2026-10-10 参考读书站）——只作用于已加载 PDF 的页面。
+   独立视觉域，色值不走亮色 tokens（tokens 是亮色系，注释即理由） */
+.pdf-view.reading {
+  background: #1b1c1e;
+  border-radius: var(--radius-lg);
+}
+.pdf-view.reading .pdf-container {
+  background: #232427;
+  border: none;
+  border-radius: var(--radius-lg);
+}
+.pdf-view.reading .pdf-wrapper canvas {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* chats: 翻页控制——sticky 贴滚动容器底部，长页滚动时始终可见 */
+.page-controls {
+  position: sticky;
+  bottom: 0;
+  align-self: stretch;
+  margin-top: auto; /* 内容不满一屏时也压到底缘 */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--spacing-md);
+}
+.page-btn {
+  padding: 6px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #c9c9cf;
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+  transition: background var(--transition-fast);
+}
+.page-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+}
+.page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.page-indicator {
+  font-size: var(--font-size-sm);
+  color: #8a8a92;
 }
 
 .pdf-wrapper {
@@ -781,6 +1019,24 @@ window.addEventListener('resize', handleResize)
   max-width: 100%;
   height: auto;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* chats: 左右双页版式（2026-10-10 用户要求）——
+   两个 page-slot 并排像摊开的书；flex:1 让两页均分宽度，min-width:0 允许 canvas 收缩。
+   单页模式不加 double 类，page-slot 的 relative 定位保证标注层照常覆盖 */
+.page-slot {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+.pdf-wrapper.double {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+}
+.pdf-wrapper.double .page-slot {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 /* ====== 关键修复：标注图层直接覆盖在 PDF Canvas 之上 ====== */
@@ -812,6 +1068,21 @@ window.addEventListener('resize', handleResize)
   min-height: 400px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-lg);
+}
+
+/* chats: 加载圆环 spinner（参考件同款，替代 ⏳ 文字） */
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: pdf-spin 1s linear infinite;
+}
+@keyframes pdf-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .zoom-display {

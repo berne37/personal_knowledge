@@ -129,13 +129,13 @@ async function testConnection() {
       }),
     })
     if (res.ok) {
-      flash('✅ 连接成功，配置可用', 'ok')
+      flash('连接成功，配置可用', 'ok')
     } else {
       const t = await res.text()
-      flash(`❌ 连接失败（${res.status}）：${t.slice(0, 200)}`, 'err')
+      flash(`连接失败（${res.status}）：${t.slice(0, 200)}`, 'err')
     }
   } catch (e) {
-    flash('❌ 请求出错：' + (e as Error).message, 'err')
+    flash('请求出错：' + (e as Error).message, 'err')
   } finally {
     testing.value = false
   }

@@ -1,44 +1,83 @@
 <template>
   <div class="mindmap-view">
-    <div class="header">
-      <h2>思维导图</h2>
-      <div class="actions">
-        <!-- 使用 store 中的 isLoading -->
-        <button @click="generateFromKnowledge" :disabled="store.isLoading">
-          {{ store.isLoading ? '生成中...' : '从知识库生成' }}
+    <!-- chats: 2026-10-10 参考截图定稿——页头撤掉，换成浮在画布顶部居中的工具条。
+         生成永远在（没图也要能生成）；缩放/适应/导出只在有图时出现 -->
+    <div class="mindmap-toolbar">
+      <button class="tool-btn" @click="generateFromKnowledge" :disabled="store.isLoading">
+        <Sparkles :size="14" />
+        {{ store.isLoading ? '生成中...' : '生成' }}
+      </button>
+      <template v-if="store.mindMapData">
+        <button class="tool-btn icon-only" title="放大" @click="mindMapRef?.zoomIn()">
+          <ZoomIn :size="15" />
         </button>
+        <button class="tool-btn icon-only" title="缩小" @click="mindMapRef?.zoomOut()">
+          <ZoomOut :size="15" />
+        </button>
+        <button class="tool-btn" title="复位到整图可见" @click="mindMapRef?.resetView()">
+          <Maximize2 :size="14" />
+          适应窗口
+        </button>
+        <button class="tool-btn" :disabled="isExporting" title="导出为 PNG" @click="handleExport">
+          <Download :size="14" />
+          {{ isExporting ? '导出中...' : '导出' }}
+        </button>
+      </template>
+    </div>
+
+    <!-- chats: 内容层——限宽居中 + 留白由这层管，工具条浮在根容器上 -->
+    <div class="mindmap-body">
+      <!-- 使用 store 中的 errorMessage -->
+      <div v-if="store.errorMessage" class="error">
+        {{ store.errorMessage }}
       </div>
-    </div>
 
-    <!-- 使用 store 中的 errorMessage -->
-    <div v-if="store.errorMessage" class="error">
-      {{ store.errorMessage }}
-    </div>
+      <!-- 使用 store 中的 mindMapData 和 isLoading -->
+      <div v-if="!store.mindMapData && !store.isLoading" class="placeholder">
+        <p>点击「生成」来展示思维导图</p>
+      </div>
 
-    <!-- 使用 store 中的 mindMapData 和 isLoading -->
-    <div v-if="!store.mindMapData && !store.isLoading" class="placeholder">
-      <p>点击「从知识库生成」来展示思维导图</p>
-    </div>
+      <div v-if="store.isLoading" class="loading">
+        <p>AI 正在生成思维导图...</p>
+        <div class="typing-dots"><span></span><span></span><span></span></div>
+      </div>
 
-    <div v-if="store.isLoading" class="loading">
-      <p>AI 正在生成思维导图...</p>
-      <div class="typing-dots"><span></span><span></span><span></span></div>
+      <!-- 使用 store 中的 mindMapData -->
+      <MindMap v-if="store.mindMapData" ref="mindMapRef" :data="store.mindMapData" />
     </div>
-
-    <!-- 使用 store 中的 mindMapData -->
-    <MindMap v-if="store.mindMapData" :data="store.mindMapData" />
   </div>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 // 使用 store
 import { useMindmapStore } from '@/stores/mindmapStore'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import { generateMindMapWithAI } from '@/services/mindMap'
 import MindMap from '@/components/MindMap.vue'
+// chats: 浮动工具条图标（lucide，与全站图标库同源）
+import { Sparkles, ZoomIn, ZoomOut, Maximize2, Download } from 'lucide-vue-next'
 
 const store = useMindmapStore()
 const knowledgeStore = useKnowledgeStore()
+
+// chats: 画布组件引用——缩放/适应/导出动作都转发给它（MindMap.vue defineExpose）
+const mindMapRef = ref<InstanceType<typeof MindMap> | null>(null)
+const isExporting = ref(false)
+
+// chats: 导出当前导图为 PNG——失败走 store.errorMessage 展示（页面顶部错误条）
+async function handleExport() {
+  if (isExporting.value) return
+  isExporting.value = true
+  store.setError('')
+  try {
+    await mindMapRef.value?.exportPng('思维导图')
+  } catch (e) {
+    store.setError((e as Error).message || '导出失败，请重试')
+  } finally {
+    isExporting.value = false
+  }
+}
 
 // AI 生成（使用 store 管理状态）
 async function generateFromKnowledge() {
@@ -87,45 +126,63 @@ async function generateFromKnowledge() {
 
 <style scoped>
 .mindmap-view {
+  position: relative; /* 工具条的定位锚 */
   display: flex;
   flex-direction: column;
   height: 100vh;
+  box-sizing: border-box;
+}
+/* chats: 浮动工具条（2026-10-10 参考截图定稿）——浮在画布顶部居中，白底圆角卡片带阴影；
+   画布随便拖，工具条不随画布动。生成永远在（没图也要能生成） */
+.mindmap-toolbar {
+  position: absolute;
+  top: var(--spacing-md);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+.tool-btn:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+.tool-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+/* chats: 限宽居中 + 留白从根容器挪到内容层（2026-10-10） */
+.mindmap-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
   box-sizing: border-box;
-}
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-md);
-  padding: 0 var(--spacing-xs);
-}
-.header h2 {
-  margin: 0;
-}
-.actions {
-  display: flex;
-  gap: var(--spacing-sm);
-}
-.actions button {
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  /* 🔧 圆角统一到 --radius-md（8px），与「新建条目」标准一致，原为 4px 方角 */
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-md);
-  cursor: pointer;
-  transition: background var(--transition-normal);
-}
-.actions button:disabled {
-  background: var(--color-text-light);
-  cursor: not-allowed;
-}
-.actions button:hover:not(:disabled) {
-  background: var(--color-primary-hover);
 }
 .error {
   padding: var(--spacing-sm);
