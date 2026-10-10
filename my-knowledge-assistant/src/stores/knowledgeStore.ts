@@ -2,6 +2,8 @@ import { openDB } from 'idb'
 import { defineStore } from 'pinia'
 import { isProxy, ref, toRaw } from 'vue'
 import type { Attachment, KnowledgeItem, Note } from '@/types'
+// chats: 附件 OPFS 快照（方案③）——句柄权限重启会被收，字节抄进 OPFS 兜底显示
+import { deleteSnapshot, saveSnapshot } from '@/services/attachmentSnapshot'
 
 // 初始化 IndexedDB（版本 2）
 const dbPromise = openDB('knowledgeDB', 2, {
@@ -147,6 +149,9 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
       size: file.size,
       dateAdded: new Date().toISOString(),
     }
+    // chats: 上传当场把字节抄一份进 OPFS（刚授权完正是能读的时候）——
+    // 重启后句柄权限被收，靠这份快照显示缩略图。抄失败（老浏览器）不挡入库
+    attachment.snapshot = await saveSnapshot(attachment.id, file)
 
     if (!item.attachments) item.attachments = []
     item.attachments.push(attachment)
@@ -165,6 +170,27 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     item.attachments = (item.attachments || []).filter((a: Attachment) => a.id !== attachmentId)
     item.updatedAt = new Date().toISOString()
 
+    // chats: OPFS 里的快照字节一起清，不然删一次附件留一份孤儿文件
+    await deleteSnapshot(attachmentId)
+
+    await db.put('items', item)
+    await loadItems()
+  }
+
+  // chats: 快照元信息回写（「跟着更新」的落点）——解析预览时发现原文件
+  // lastModified/size 对不上就重抄快照，然后调这里把新元信息存回附件。
+  // 直改直存不走 updateItem：这属于内部元数据维护，不该碰 updatedAt
+  async function updateAttachmentSnapshot(
+    itemId: number,
+    attachmentId: string,
+    snapshot: { lastModified: number; size: number },
+  ) {
+    const db = await dbPromise
+    const item = await db.get('items', itemId)
+    if (!item) return
+    const att = (item.attachments || []).find((a: Attachment) => a.id === attachmentId)
+    if (!att) return
+    att.snapshot = snapshot
     await db.put('items', item)
     await loadItems()
   }
@@ -305,6 +331,7 @@ export const useKnowledgeStore = defineStore('knowledge', () => {
     addAttachment,
     addAttachmentByHandle,
     removeAttachment,
+    updateAttachmentSnapshot,
     deleteItem,
     updateItem,
     addNote,

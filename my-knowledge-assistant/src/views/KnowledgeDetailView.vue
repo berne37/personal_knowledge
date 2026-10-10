@@ -493,15 +493,53 @@
         <div v-show="activeTab === 'materials'" class="tab-panel">
           <div class="attachments-panel">
             <div class="upload-area">
+              <!-- chats: 上传区参考 UIverse 的「Project Structure tooltip」组件改版（2026-10-10）——
+                   图标+文字触发器，悬停放出说明面板，原来那条一长串 hint 文字收进面板；
+                   样式从 Tailwind 翻译成 tokens，过渡 1s 太慢改用 --transition-fast -->
               <!-- local-first：支持 FSAA 的浏览器优先用「只记句柄」方式，文件内容不进 IndexedDB -->
               <!-- chats: 修复本地优先按钮漏绑定的 @click（之前没绑定，点了没反应） -->
-              <button v-if="supportsFsaa" class="btn-outline upload-btn" @click="addViaHandle">
-                添加本地文件（本地优先）
-              </button>
+              <div v-if="supportsFsaa" class="upload-tip">
+                <button class="upload-trigger" @click="addViaHandle">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 14" height="20" width="20">
+                    <path
+                      fill="#FFA000"
+                      d="M16.2 1.75H8.1L6.3 0H1.8C0.81 0 0 0.7875 0 1.75V12.25C0 13.2125 0.81 14 1.8 14H15.165L18 9.1875V3.5C18 2.5375 17.19 1.75 16.2 1.75Z"
+                    ></path>
+                    <path
+                      fill="#FFCA28"
+                      d="M16.2 2H1.8C0.81 2 0 2.77143 0 3.71429V12.2857C0 13.2286 0.81 14 1.8 14H16.2C17.19 14 18 13.2286 18 12.2857V3.71429C18 2.77143 17.19 2 16.2 2Z"
+                    ></path>
+                  </svg>
+                  <span>添加本地文件（本地优先）</span>
+                </button>
+                <div class="upload-pop">
+                  <p>只记录文件位置，内容不出本机。图片会抄一份快照进浏览器私有存储，重启后预览不丢。</p>
+                  <p class="up-fmt">支持 JPG / PNG / GIF / WebP / PDF</p>
+                </div>
+              </div>
               <!-- 兼容模式：Firefox 等不支持 FSAA 时，降级为把内容转 Base64 入库 -->
-              <button class="btn-outline upload-btn" @click="triggerFilePicker">
-                上传附件（兼容）
-              </button>
+              <div class="upload-tip">
+                <button class="upload-trigger" @click="triggerFilePicker">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" height="20" width="20">
+                    <path
+                      d="M12 15V5m0 0-4 4m4-4 4 4"
+                      stroke="#8E8E8E"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    ></path>
+                    <path d="M4 20h16" stroke="#8E8E8E" stroke-width="2" stroke-linecap="round"></path>
+                  </svg>
+                  <span>上传附件（兼容）</span>
+                </button>
+                <div class="upload-pop">
+                  <p v-if="supportsFsaa">
+                    备用通道：文件内容转 Base64 直接存进本地数据库，任何浏览器都能用。
+                  </p>
+                  <p v-else>当前浏览器不支持本地优先，已自动用兼容模式：文件内容转 Base64 存进本地数据库。</p>
+                  <p class="up-fmt">支持 JPG / PNG / GIF / WebP / PDF</p>
+                </div>
+              </div>
               <!-- 修改：accept 加上 application/pdf，允许上传 PDF；multiple 允许一次选多个 -->
               <input
                 ref="fileInput"
@@ -511,11 +549,6 @@
                 style="display: none"
                 @change="handleFileChange"
               />
-              <span class="upload-hint">
-                支持图片（JPG、PNG、GIF、WebP）和 PDF；
-                <template v-if="supportsFsaa">「本地优先」只记录文件位置、内容不出本机</template>
-                <template v-else>当前浏览器不支持本地优先，已用兼容模式</template>
-              </span>
             </div>
 
             <div v-if="item.attachments && item.attachments.length > 0" class="attachment-list">
@@ -530,6 +563,15 @@
                 <div class="attachment-info">
                   <span class="attachment-name">{{ att.name }}</span>
                   <span class="attachment-date">{{ formatDate(att.dateAdded) }}</span>
+                  <!-- chats: 快照也救不回（老附件从没抄过快照 + 权限被收）才出现；
+                       点击 = 用户手势里请求授权，Chrome 122+ 可选「每次访问都允许」 -->
+                  <button
+                    v-if="authNeededIds.includes(att.id)"
+                    class="btn-outline reauth-btn"
+                    @click="reauthorizeAttachment(att)"
+                  >
+                    重新授权
+                  </button>
                 </div>
                 <!-- 新增：PDF 附件才显示「阅读」按钮，点了跳去 PDF 阅读器 -->
                 <button
@@ -565,6 +607,13 @@ import MindMap from '@/components/MindMap.vue'
 import Lightbox from '@/components/Lightbox.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import { generateMindMapWithAI } from '@/services/mindMap'
+// chats: 附件 OPFS 快照（方案③）——句柄权限重启会被收，显示退快照、原文件变了重抄
+import {
+  queryHandlePermission,
+  readSnapshot,
+  requestHandlePermission,
+  saveSnapshot,
+} from '@/services/attachmentSnapshot'
 // chats: formatDate 抽到 src/utils/date.ts 统一维护（原先这里和列表项组件各有一份一模一样的实现）
 import { formatDate } from '@/utils/date'
 import { showError, showSuccess } from '@/utils/toast'
@@ -588,6 +637,8 @@ const supportsFsaa = typeof (window as any).showOpenFilePicker === 'function'
 
 // 句柄附件（无 Base64）的图片预览地址，按 attachment.id 缓存；从句柄现读文件生成。
 const previewUrls = ref<Record<string, string>>({})
+// chats: 快照也救不回（没抄过快照 + 权限被收）的附件 id——列表里给「重新授权」按钮
+const authNeededIds = ref<string[]>([])
 
 // chats: 四 tab 重构
 const tabs = [
@@ -1102,24 +1153,82 @@ function revokePreviews() {
 
 // local-first：句柄附件（无 Base64）的图片预览，需要从句柄现读文件生成临时 URL。
 // 图片用 URL.createObjectURL，PDF 不需要预览图（显示占位图标）。
+//
+// chats: 方案③解析优先级（2026-10-10）——
+//   ① 句柄有权限 → 直读原文件；顺手对比 lastModified/size，原文件变过就重抄快照（跟着更新）
+//   ② 权限被收（重启常态）→ 退 OPFS 快照，缩略图照样亮
+//   ③ 快照也没有（老附件从没抄过）→ 记入 authNeededIds，列表里出「重新授权」按钮
 async function resolvePreviews() {
   revokePreviews() // chats: 先释放旧的，再生成新的
   if (!item.value?.attachments) {
     previewUrls.value = {}
+    authNeededIds.value = []
     return
   }
   const urls: Record<string, string> = {}
+  const needsAuth: string[] = []
   for (const att of item.value.attachments) {
     if (att.handle && att.type?.startsWith('image/')) {
-      try {
-        const file = await att.handle.getFile()
-        urls[att.id] = URL.createObjectURL(file)
-      } catch {
-        // 授权被拒或文件已移走：预览留空，不影响其他功能
-      }
+      const file = await resolveHandleImage(att, needsAuth)
+      if (file) urls[att.id] = URL.createObjectURL(file)
     }
   }
   previewUrls.value = urls
+  authNeededIds.value = needsAuth
+}
+
+// chats: 单个句柄图片的三级解析（见 resolvePreviews 注释）。快照重抄后的元信息
+// 回写走 store.updateAttachmentSnapshot，那边 loadItems 会再触发一次解析——
+// 第二轮对比相等就不再写，不会循环
+async function resolveHandleImage(att: Attachment, needsAuth: string[]): Promise<File | null> {
+  const handle = att.handle
+  if (!handle || !item.value) return null
+
+  if ((await queryHandlePermission(handle)) === 'granted') {
+    try {
+      const file = await handle.getFile()
+      const snap = att.snapshot
+      // 快照没抄过、或原文件 lastModified/size 变了 = 该重抄（旧附件在这里自动补快照）
+      if (snap?.lastModified !== file.lastModified || snap?.size !== file.size) {
+        const meta = await saveSnapshot(att.id, file)
+        if (meta) void store.updateAttachmentSnapshot(item.value.id, att.id, meta)
+      }
+      return file
+    } catch {
+      // 有权限但文件被移走/读炸：往下退快照
+    }
+  }
+
+  // 权限被收（重启常态）：退 OPFS 快照，显示不受影响
+  const snapFile = await readSnapshot(att.id)
+  if (snapFile) return snapFile
+
+  needsAuth.push(att.id) // 快照也没有：只能等用户点「重新授权」
+  return null
+}
+
+// chats: 「重新授权」按钮（点击 = 用户手势，requestPermission 只能在手势里调）。
+// Chrome 122+ 弹三选项，选「每次访问都允许」以后重启也不再问。
+// 授权成功立刻补抄快照，老附件从此上岸
+async function reauthorizeAttachment(att: Attachment) {
+  const handle = att.handle
+  if (!handle || !item.value) return
+  const perm = await requestHandlePermission(handle)
+  if (perm !== 'granted') {
+    showError('未获得文件访问权限，缩略图将继续使用快照')
+    return
+  }
+  try {
+    const file = await handle.getFile()
+    const meta = await saveSnapshot(att.id, file)
+    if (meta) await store.updateAttachmentSnapshot(item.value.id, att.id, meta)
+    await loadItem(false) // 重新解析预览
+    showSuccess('已重新授权，图片预览恢复')
+  } catch (error) {
+    // 授权成功但文件本身读不到（被移动/删除）
+    console.error('重新授权后读取文件失败:', error)
+    showError('授权成功，但原文件读不到了（可能被移动或删除）')
+  }
 }
 
 // 改动：阅读 PDF 时，有句柄就带句柄（local-first 模式，不依赖 Base64）；
@@ -1539,24 +1648,25 @@ watch(
 .tab-content {
   min-height: 300px;
 }
+/* chats: 内容离导航栏的距离只归这里管（2026-10-10 统一）——以前三个 tab
+   各自为政：概览 12px（nav mb 8 + panel pt 4）、笔记靠 panel 负 margin 抵掉后
+   自己加 16、资料虚线框 12 + 框内 16 叠成 28。现在 panel 统一给 16px，
+   子元素一律不再自带 margin-top */
 .tab-panel {
-  padding: var(--spacing-xs) 0;
+  padding: var(--spacing-md) 0 var(--spacing-xs);
 }
 
 /* ===== 笔记 tab：横向笔记条（笔记一对多，展示/编辑收进弹窗） ===== */
-/* chats: 上移抵掉 tab-nav 的 margin-bottom + panel 自身的 padding-top，
-   笔记条顶边才贴得住导航栏下边框 */
+/* chats: 旧的负 margin 上移 hack 已删——当年是为了让横条贴死导航栏下边框，
+   后来用户要求留间距，tab-panel 统一发 16px 后这套抵消失去意义 */
 .notes-panel {
   display: flex;
   flex-direction: column;
-  margin-top: calc(var(--spacing-sm) * -1);
-  padding-top: 0;
 }
 /* 横向笔记条：条目横排、超出横滚（滚轮直滚，复用概览卡片的 onCardWheel）。
    chats: 滚动条视觉上不显眼（2026-10-10 用户要求）——display:none + 尺寸归零双保险，
    滚动能力保留（overflow-x: auto + 滚轮直滚都在） */
 .note-bar {
-  margin-top: var(--spacing-md);
   margin-bottom: -4px;
   display: flex;
   align-items: stretch;
@@ -2092,25 +2202,81 @@ watch(
   gap: var(--spacing-md);
 }
 
+/* chats: 原来这里是个虚线「拖拽区」盒子（padding 16 + 虚线边框）——但拖拽功能
+   从来没写过，纯装饰还把按钮顶到 32px，和概览卡/笔记条的 16px 顶距对不齐。
+   2026-10-10 拆掉装饰降级成普通一行 flex，按钮顶距归 tab-panel 统一发 */
 .upload-area {
   display: flex;
   align-items: center;
   gap: var(--spacing-md);
-  padding: var(--spacing-md);
-  background: var(--color-bg);
+}
+
+/* chats: 上传触发器 + 悬停说明面板（2026-10-10 参考 UIverse tooltip 组件）——
+   触发器 = 白底 + 边框 + 阴影 + 图标；面板 = absolute 下拉 + opacity/visibility 过渡。
+   原上传按钮/一长条 hint 已收编进这套（.upload-btn / .upload-hint 退役） */
+.upload-tip {
+  position: relative;
+  display: inline-block;
+}
+.upload-trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  border: 1px dashed var(--color-border);
-}
-
-/* 上传按钮比普通按钮大一档（资料 tab 的主操作，靠尺寸而不是颜色来突出） */
-.upload-btn {
-  padding: 8px 18px;
-  font-size: var(--font-size-md);
-  flex-shrink: 0;
-}
-
-.upload-hint {
+  box-shadow: var(--shadow-sm);
   font-size: var(--font-size-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+.upload-trigger:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+/* 面板默认隐身（opacity+visibility+上移 2px 三件），pointer-events 关掉防止
+   透明时挡住下方元素的点击；悬停 wrapper 才放出 */
+.upload-pop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  width: 264px;
+  margin-top: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-2px);
+  transition:
+    opacity var(--transition-fast),
+    transform var(--transition-fast),
+    visibility var(--transition-fast);
+  pointer-events: none;
+}
+.upload-pop p {
+  margin: 0 0 4px;
+}
+.upload-pop p:last-child {
+  margin-bottom: 0;
+}
+.upload-tip:hover .upload-pop {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.up-fmt {
   color: var(--color-text-placeholder);
 }
 
@@ -2143,6 +2309,16 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+/* chats: 重新授权按钮——快照救不回时出现；暖色描边提示「要你点一下」而不吓人，
+   align-self 防止被 column stretch 拉通栏 */
+.reauth-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+  padding: 1px 8px;
+  font-size: var(--font-size-xs);
+  color: var(--color-warning, #b45309);
+  border-color: var(--color-warning, #b45309);
 }
 .attachment-name {
   font-size: var(--font-size-sm);

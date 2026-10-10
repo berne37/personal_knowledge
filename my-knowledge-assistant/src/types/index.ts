@@ -74,6 +74,9 @@ export interface Attachment {
   // 浏览器不支持 showOpenFilePicker（如 Firefox）时降级为 Base64（data 有值、handle 为 null）
   handle?: FileSystemFileHandle | null // 文件句柄（Chrome/Edge 可序列化进 IndexedDB，重开时授权后重读）
   data?: string // 附件数据（Base64 编码，降级方案使用，可选）
+  // 方案③：OPFS 快照元信息——上传时把字节抄一份进浏览器私有文件系统，
+  // 重启后句柄权限被收也能显示快照；lastModified/size 用来对比原文件是否变过（跟着更新）
+  snapshot?: { lastModified: number; size: number } | null
   size?: number // 附件大小（字节数，可选）
   dateAdded: string // 添加时间
 }
