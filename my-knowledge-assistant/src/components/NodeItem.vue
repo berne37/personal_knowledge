@@ -12,7 +12,15 @@
         {{ store.getEffectiveProgress(node) }}%
       </span>
       <div v-if="node.attachments?.length" class="attachments">
-        <div v-for="attachment in node.attachments" :key="attachment.id" class="attachment-item">
+        <div
+          v-for="attachment in node.attachments"
+          :key="attachment.id"
+          class="attachment-item"
+          :class="{ clickable: attachment.type?.startsWith('image/') && attachment.data }"
+          :title="attachment.type?.startsWith('image/') ? '点击放大查看' : attachment.name"
+          @click="openLightbox(attachment)"
+          @contextmenu.prevent="openMenu($event, attachment)"
+        >
           <img
             v-if="attachment.type?.startsWith('image/')"
             :src="attachment.data"
@@ -20,7 +28,11 @@
             :alt="attachment.name"
           />
           <span class="file-name">{{ attachment.name }}</span>
-          <button class="btn-icon" title="删除附件" @click="removeAttachment(attachment.id)">
+          <button
+            class="btn-icon"
+            title="删除附件"
+            @click.stop="removeAttachment(attachment.id)"
+          >
             ×
           </button>
         </div>
@@ -33,6 +45,22 @@
       </div>
       <input ref="fileInput" type="file" accept="image/*" hidden @change="handleFileChange" />
     </div>
+
+    <!-- chats: 灯箱复用知识库详情页那套（2026-10-13）——传本节点全部图片附件，
+         ←/→ 在它们之间循环；真相源是本组件的 lightboxSrc，组件只发事件 -->
+    <Lightbox :src="lightboxSrc" :images="imageList" @close="lightboxSrc = ''" @nav="onNav" />
+
+    <!-- chats: 附件右键菜单（2026-10-13）——透明遮罩负责「点哪都关」，
+         菜单本体 Teleport 到 body 防止被卡片的 overflow 裁掉 -->
+    <Teleport to="body">
+      <div v-if="menu" class="ctx-backdrop" @click="menu = null" @contextmenu.prevent="menu = null">
+        <div class="ctx-menu" :style="{ left: menu.x + 'px', top: menu.y + 'px' }">
+          <button class="ctx-item" @click="openTargetFolder(menu.att)">打开目标文件夹</button>
+          <button class="ctx-item" @click="shareAttachment(menu.att)">分享</button>
+          <button class="ctx-item danger" @click="deleteAttachment(menu.att)">删除</button>
+        </div>
+      </div>
+    </Teleport>
 
     <div v-if="showAddForm" class="add-child-form">
       <input v-model="childTitle" placeholder="子节点名称" />
@@ -74,9 +102,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useProjectStore } from '@/stores/projectStore'
-import type { ProjectNode } from '@/types'
+import type { Attachment, ProjectNode } from '@/types'
+// chats: 灯箱复用知识库详情页的组件（2026-10-13）——图片附件点击放大
+import Lightbox from '@/components/Lightbox.vue'
 
 const store = useProjectStore()
 const props = defineProps<{ node: ProjectNode; projectId: string }>()
@@ -134,6 +164,79 @@ async function handleFileChange(event: Event) {
 
 async function removeAttachment(attachmentId: string) {
   await store.removeAttachment(props.projectId, props.node.id, attachmentId)
+}
+
+// ---------- 附件：点击放大（灯箱） ----------
+// chats: 项目侧附件是 Base64 直存（projectStore.addAttachment 转 dataUrl），
+// src 就是 attachment.data，不用像知识库那样走句柄授权那三级解析
+const lightboxSrc = ref('')
+const imageList = computed(() =>
+  props.node.attachments
+    .filter((a) => a.type?.startsWith('image/') && a.data)
+    .map((a) => a.data!),
+)
+
+function openLightbox(att: Attachment) {
+  if (!att.type?.startsWith('image/') || !att.data) return
+  lightboxSrc.value = att.data
+}
+
+// ←/→ 在本节点的图片附件之间循环换图（和知识库详情页同一套交互）
+function onNav(dir: 1 | -1) {
+  const list = imageList.value
+  const idx = list.indexOf(lightboxSrc.value)
+  const next = list[(idx + dir + list.length) % list.length]
+  if (next) lightboxSrc.value = next
+}
+
+// ---------- 附件：右键菜单 ----------
+const menu = ref<{ x: number; y: number; att: Attachment } | null>(null)
+
+function openMenu(e: MouseEvent, att: Attachment) {
+  // 简单防出屏：菜单约 170×130，快出屏时往回收
+  const menuW = 170
+  const menuH = 130
+  menu.value = {
+    x: Math.min(e.clientX, window.innerWidth - menuW - 8),
+    y: Math.min(e.clientY, window.innerHeight - menuH - 8),
+    att,
+  }
+}
+
+function openTargetFolder(att: Attachment) {
+  menu.value = null
+  // 浏览器沙箱没有「在资源管理器中显示」这类 API，而且项目附件是 Base64
+  // 存在浏览器库里、本来就没有系统路径可开。菜单项先占位，迁 Tauri 后接原生能力
+  alert('浏览器环境打不开本地文件夹：文件内容存在浏览器里，没有系统路径。等迁移桌面版后这个菜单项就能用了。')
+}
+
+async function shareAttachment(att: Attachment) {
+  menu.value = null
+  if (!att.data) {
+    alert('这个附件没有可分享的内容')
+    return
+  }
+  try {
+    // Base64 → Blob → File，走 Web Share API；先 canShare 探测（Safari/手机端支持好，桌面 Chrome 部分支持）
+    const blob = await (await fetch(att.data)).blob()
+    const file = new File([blob], att.name, { type: att.type })
+    if (navigator.canShare?.({ files: [file] })) {
+      await navigator.share({ files: [file], title: att.name })
+    } else {
+      alert('当前浏览器不支持文件分享，可以试试 Chrome / Edge 或手机端')
+    }
+  } catch (e) {
+    // 用户在系统分享面板点了取消也会抛 AbortError，那是正常操作不是失败
+    if ((e as DOMException)?.name !== 'AbortError') {
+      alert('分享失败：' + (e instanceof Error ? e.message : String(e)))
+    }
+  }
+}
+
+async function deleteAttachment(att: Attachment) {
+  menu.value = null
+  if (!confirm(`删除附件「${att.name}」？`)) return
+  await removeAttachment(att.id)
 }
 
 function confirmAddChild() {
@@ -316,5 +419,51 @@ function getStatusLabel(status: string): string {
 .attachment-item .btn-icon:hover {
   color: var(--color-danger);
   background: transparent;
+}
+/* chats: 图片附件整条可点（放大），光标和悬停底色给暗示 */
+.attachment-item.clickable {
+  cursor: zoom-in;
+}
+.attachment-item.clickable:hover {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+}
+
+/* ---------- 附件右键菜单（Teleport 到 body，scoped 仍生效：Vue 会给 Teleport 内容带上 scoped 属性） ---------- */
+.ctx-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1900; /* 低于灯箱的 2000 */
+}
+.ctx-menu {
+  position: fixed;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+}
+.ctx-item {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.ctx-item:hover {
+  background: var(--color-bg-hover);
+}
+.ctx-item.danger {
+  color: var(--color-danger);
+}
+.ctx-item.danger:hover {
+  background: var(--color-danger);
+  color: #fff;
 }
 </style>

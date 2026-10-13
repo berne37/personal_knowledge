@@ -123,6 +123,12 @@
         <div class="nodes-section">
           <div class="nodes-header">
             <h4>节点列表</h4>
+            <!-- chats: 图谱/列表切换（2026-10-13）——图谱默认，层级一目了然；
+                 编辑/添加子任务仍回列表做，图谱第一版只读 -->
+            <div class="view-toggle">
+              <button :class="{ active: nodeView === 'graph' }" @click="nodeView = 'graph'">图谱</button>
+              <button :class="{ active: nodeView === 'list' }" @click="nodeView = 'list'">列表</button>
+            </div>
             <button class="btn-small" @click="openAddNode(project.id)">+ 添加节点</button>
           </div>
 
@@ -142,23 +148,28 @@
             </div>
           </div>
 
+          <!-- chats: 图谱视图（只读）——key 换项目时重挂载，避免上个项目的图残留 -->
+          <ProjectGraph v-if="nodeView === 'graph'" :key="project.id" :project="project" />
+
           <!-- 节点列表 -->
-          <div v-if="project.nodes.length === 0" class="empty-nodes">
-            <span>暂无节点，添加第一个任务吧</span>
-          </div>
-          <div v-else class="node-list">
-            <!-- 新增：透传 projectId，供节点内附件/编辑调用 store -->
-            <NodeItem
-              v-for="node in project.nodes"
-              :key="node.id"
-              :node="node"
-              :project-id="project.id"
-              @add-child="
-                (parentId, nodeData) => store.addChildNode(project.id, parentId, nodeData)
-              "
-              @delete="(nodeId) => deleteNode(project.id, nodeId)"
-            />
-          </div>
+          <template v-if="nodeView === 'list'">
+            <div v-if="project.nodes.length === 0" class="empty-nodes">
+              <span>暂无节点，添加第一个任务吧</span>
+            </div>
+            <div v-else class="node-list">
+              <!-- 新增：透传 projectId，供节点内附件/编辑调用 store -->
+              <NodeItem
+                v-for="node in project.nodes"
+                :key="node.id"
+                :node="node"
+                :project-id="project.id"
+                @add-child="
+                  (parentId, nodeData) => store.addChildNode(project.id, parentId, nodeData)
+                "
+                @delete="(nodeId) => deleteNode(project.id, nodeId)"
+              />
+            </div>
+          </template>
         </div>
       </div>
     </div>
@@ -172,6 +183,8 @@ import { useProjectStore } from '@/stores/projectStore'
 import { useKnowledgeStore } from '@/stores/knowledgeStore'
 import type { Project, ProjectNode, KnowledgeItem } from '@/types'
 import NodeItem from '@/components/NodeItem.vue'
+// chats: 项目节点关系图谱（2026-10-13）——relation-graph 树状布局，第一版只读
+import ProjectGraph from '@/components/ProjectGraph.vue'
 import BaseModal from '@/components/BaseModal.vue'
 // chats: 截止日期格式化统一走 utils（原先模板里内联 toLocaleDateString，没兜底也不带 locale）
 import { formatDate } from '@/utils/date'
@@ -213,6 +226,8 @@ async function toggleProjectLink(item: KnowledgeItem, projectId: string) {
 
 //UI状态
 const expandedId = ref<string | null>(null)
+// chats: 节点展示方式（2026-10-13）——graph 图谱 / list 列表，全局一个开关管所有展开的项目
+const nodeView = ref<'graph' | 'list'>('graph')
 const showCreateModel = ref(false)
 const newProjectName = ref('')
 const newProjectDesc = ref('')
@@ -544,7 +559,10 @@ onMounted(() => {
 
 .project-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  /* chats: minmax(0,1fr) 而不是 1fr——1fr 的最小尺寸默认是内容 min-content，
+       3D 图谱的 canvas 带固有像素宽度，会把整条轨道（连同页面）撑宽（2026-10-13 修）；
+       minmax(0,1fr) 强制轨道忽略内容最小宽度，窄了就靠内部裁剪 */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--spacing-md);
 }
 
@@ -553,6 +571,7 @@ onMounted(() => {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   padding: var(--spacing-md);
+  min-width: 0; /* 双保险：网格项也允许被压缩到内容宽度以下 */
   transition: box-shadow var(--transition-fast);
 }
 .project-card:hover {
@@ -734,6 +753,28 @@ onMounted(() => {
 .nodes-header h4 {
   margin: 0;
   font-size: var(--font-size-md);
+}
+
+/* chats: 图谱/列表切换（2026-10-13）——文字小胶囊组，active 主色 */
+.view-toggle {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  margin-right: var(--spacing-sm);
+}
+.view-toggle button {
+  padding: 3px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+.view-toggle button.active {
+  background: var(--color-primary-light);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .add-node-form {
