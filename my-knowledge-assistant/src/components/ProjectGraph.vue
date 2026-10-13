@@ -30,9 +30,12 @@
 // chats: 引擎选型（2026-10-13）——3d-force-graph 是 GitHub 上 3D 力导向图的事实标准
 // （three-forcegraph 内核 + d3-force-3d），类型声明齐全，Vue 外面套一层挂载/销毁即可。
 // relation-graph 只有 2D，所以 3D 模式换引擎；数据拍平逻辑和详情面板沿用原设计
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import ForceGraph3D from '3d-force-graph'
 import type { ForceGraph3DInstance, NodeObject } from '3d-force-graph'
+import * as THREE from 'three'
+// chats: 球上跟随的名字标签用 SpriteText（canvas 贴图精灵，3D 图谱标配搭档）
+import SpriteText from 'three-spritetext'
 import type { Project, ProjectNode } from '@/types'
 
 const props = defineProps<{ project: Project }>()
@@ -47,6 +50,8 @@ const STATUS_COLOR = {
   completed: '#42b983',
   blocked: '#e74c3c',
 } as const
+// 与 --color-primary 同值，理由同上
+const PRIMARY_COLOR = '#3b82f6'
 
 const STATUS_LABEL = {
   pending: '待处理',
@@ -75,7 +80,7 @@ const flatNodes = computed(() => [...nodeById.value.keys()])
 
 // 拍平：children 树 → nodes + links（父子一条线）
 const graphData = computed(() => {
-  const nodes: Array<{ id: string; name: string }> = [{ id: ROOT_ID, name: props.project.title }]
+  const nodes: Array<{ id: string; name: string }> = [{ id: ROOT_ID, name: props.project.name }]
   const links: Array<{ source: string; target: string }> = []
   const walk = (list: ProjectNode[], parentId: string) => {
     for (const n of list) {
@@ -98,23 +103,50 @@ function escapeHtml(s: string) {
 }
 
 function nodeLabel(node: NodeObject) {
-  const n = nodeById.value.get(String(node.id))
-  if (!n) return escapeHtml(String(node.id))
+  const id = String(node.id)
+  // 🔧 根节点不在 nodeById 索引里（它只收真实节点），之前会落到兜底分支
+  // 把内部 id「__project_root__」亮给用户——悬停该显示项目名
+  if (id === ROOT_ID) return escapeHtml(props.project.name)
+  const n = nodeById.value.get(id)
+  if (!n) return escapeHtml(id)
   return `<div style="padding:4px 8px;background:rgba(255,255,255,.9);border-radius:6px;color:#333;font-size:12px">
     ${escapeHtml(n.title)}<br/><b>${statusLabel(n.status)} · ${n.progress}%</b></div>`
 }
 
-function nodeColor(node: NodeObject) {
-  if (String(node.id) === ROOT_ID) return '#3b82f6' // 与 --color-primary 同值，理由同上
-  const n = nodeById.value.get(String(node.id))
-  return n ? STATUS_COLOR[n.status] : '#95a5a6'
-}
+// chats: 球体 + 跟随的节点名（2026-10-13 用户要求）——
+// 自定义 nodeThreeObject 后，默认的 nodeColor/nodeVal 不再生效，颜色大小都在这里算。
+// 名字用 SpriteText 挂在球正下方，是场景里的 3D 精灵，旋转缩放时永远跟着球走
+function nodeThreeObject(node: NodeObject) {
+  const id = String(node.id)
+  const isRoot = id === ROOT_ID
+  const n = nodeById.value.get(id)
+  const radius = isRoot ? 10 : n ? 3 + n.progress / 30 : 3
+  const color = isRoot ? PRIMARY_COLOR : n ? STATUS_COLOR[n.status] : '#95a5a6'
+  const labelHeight = isRoot ? 5.5 : 3.2
 
-// 球大小：根节点最大，其余按进度微调
-function nodeVal(node: NodeObject) {
-  if (String(node.id) === ROOT_ID) return 10
-  const n = nodeById.value.get(String(node.id))
-  return n ? 3 + n.progress / 30 : 3
+  const group = new THREE.Group()
+  group.add(
+    new THREE.Mesh(
+      new THREE.SphereGeometry(radius, 18, 18),
+      new THREE.MeshLambertMaterial({ color }),
+    ),
+  )
+
+  // 🔧 之前这里写的 project.title——Project 类型里根本没有这个字段（叫 name），
+  // 根节点标签文字一直是 undefined，渲染成空白胶囊（2026-10-13 截图反馈）
+  const label = new SpriteText(n ? n.title : props.project.name, labelHeight, '#444')
+  label.fontWeight = isRoot ? '700' : '500' // 项目名加粗，截图反馈里它是主角
+  label.backgroundColor = 'rgba(255,255,255,0.78)' // 半透明白底，亮色场景下保证可读
+  label.borderRadius = 1.5
+  label.padding = 1
+  // 精灵锚点在中心，往下挪「半径 + 半个字高」贴住球下缘
+  label.position.set(0, -(radius + labelHeight * 0.75), 0)
+  // 🔧 标签不参与拾取（2026-10-13 修「拖不动」）——标签四边形比球大得多，
+  // 拖拽起点几乎总会命中某个标签 → 被当成拖节点而不是旋转视角，图就「拖不动」了；
+  // raycast 置空后拾取只认球体，标签纯展示
+  label.raycast = () => {}
+  group.add(label)
+  return group
 }
 
 const selectedId = ref<string | null>(null)
@@ -131,16 +163,19 @@ function handleResize() {
   fg.height(graphBoxRef.value.clientHeight)
 }
 
-onMounted(() => {
-  if (!graphBoxRef.value) return
+// chats: 初始化时机（2026-10-13 修「球不渲染/拖不动」）——
+// 图谱容器在条件分支里：展开项目时若还没有节点，渲染的是空态、graphBoxRef 为 null，
+// 只靠 onMounted 初始化会 early return，之后节点出现了引擎也永远起不来。
+// 改成 watch 容器 ref：元素一出现就初始化，fg 非空防重复
+function initGraph(el: HTMLDivElement) {
+  if (fg) return
   // 背景色取 tokens 的 --color-bg：WebGL 读不了 CSS 变量，运行时取计算值对齐主题
   const bg = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim() || '#f6f6f7'
-  fg = ForceGraph3D()(graphBoxRef.value)
+  fg = ForceGraph3D()(el)
     .backgroundColor(bg)
     .showNavInfo(false) // 左下角默认导航提示，与页面风格不符，关掉
-    .nodeLabel(nodeLabel)
-    .nodeColor(nodeColor)
-    .nodeVal(nodeVal)
+    .nodeLabel(nodeLabel) // 悬停浮签补状态/进度（球上标签只放名字，太长会糊）
+    .nodeThreeObject(nodeThreeObject)
     .linkColor(() => '#c9c7bd')
     .linkOpacity(0.6)
     .onNodeClick(onNodeClick)
@@ -149,7 +184,15 @@ onMounted(() => {
   // 等力学布局把节点撒开后再取景，40px 内边距
   setTimeout(() => fg?.zoomToFit(400, 40), 600)
   window.addEventListener('resize', handleResize)
-})
+}
+
+watch(
+  graphBoxRef,
+  (el) => {
+    if (el) initGraph(el)
+  },
+  { immediate: true },
+)
 
 // 节点数据变了（列表里增删改）→ 喂新数据重排，选中项清掉防悬空
 watch(
