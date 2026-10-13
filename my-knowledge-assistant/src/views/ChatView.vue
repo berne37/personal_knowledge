@@ -387,10 +387,10 @@ function scrollToBottom() {
 </script>
 
 <style scoped>
-/* chats: 容器改横向布局——左侧历史侧栏 + 右侧对话主区。
-   position:relative 是历史抽屉的定位锚：抽屉用 absolute 浮在对话区上，不占布局空间 */
+/* chats: 容器横向布局——左侧历史侧栏 + 右侧对话主区。
+   历史栏不是抽屉了（2026-10-13 用户要求展开时把对话区往右推，两侧都完整可见）：
+   它是正常 flex 子元素，展开就占布局空间，chat-main 靠 flex:1 自动让位 */
 .chat-container {
-  position: relative;
   display: flex;
   height: 100vh;
   background: var(--color-bg-white);
@@ -403,25 +403,19 @@ function scrollToBottom() {
   flex-direction: column;
 }
 
-/* 历史侧栏改为「抽屉」：absolute 浮在对话区上方（锚是 .chat-container），
-   从顶栏下缘垂到页底，只遮挡不挤压——消息区和输入条都不会被推走。
-   top 必须和 .chat-header 的高度一致，否则会盖住顶栏或露出缝。
-   gap 收成 2px：首条对齐位 = padding 8 + 顶行高 22 + gap 2 = 32px，与原配平一致
-   （顶行从 16 变 22 是因为多了图标按钮，两处高度联动，改一处要连带看） */
+/* chats: 历史侧栏从「抽屉」改成「列」：absolute → 正常 flex 子元素。
+   展开时挤占布局空间把对话区推向右侧，两边都完整可见（不再是遮挡）；
+   收起时 v-show 移除元素，chat-main 独占整行。
+   flex-shrink:0 防止对话内容把 160px 压缩；顶到容器顶（不再从 52px 下垂），
+   顶栏高度配平的注释约束随之作废 */
 .history-panel {
-  position: absolute;
-  top: 52px;
-  left: 0;
-  bottom: 0;
-  width: 160px;
-  z-index: 20;
+  flex: 0 0 160px;
   display: flex;
   flex-direction: column;
   gap: 2px;
   padding: var(--spacing-sm);
   border-right: 1px solid var(--color-border);
   background: var(--color-bg-hover);
-  box-shadow: var(--shadow-md);
 }
 
 /* chats: 抽屉顶行——节标题居左 + 搜索/收起幽灵按钮居右（DeepSeek 同款布局）。
@@ -562,7 +556,7 @@ function scrollToBottom() {
 }
 
 /* 顶部标题栏：白底 + 底部细线，顶格通栏（内边距自己给，因为内容区 padding 已归零）。
-   高度写死 52px：历史抽屉的 top 靠它对齐，两边必须一处定、一处跟 */
+   高度写死 52px 纯视觉约定（历史侧栏已改为整列布局，不再有 top 对齐依赖） */
 .chat-header {
   display: flex;
   align-items: center;

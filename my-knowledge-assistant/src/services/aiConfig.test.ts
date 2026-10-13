@@ -1,11 +1,7 @@
 // 单元测试：resolveAiConfig 实现「用户配置 > .env > 代码默认值」三级合并。
 // 为什么测它：这是项目里 AI 配置优先级的核心逻辑（面试能讲清），且是纯函数，不碰页面/网络，好测。
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import {
-  resolveAiConfig,
-  saveUserAiConfig,
-  clearUserAiConfig,
-} from './aiConfig'
+import { resolveAiConfig, saveUserAiConfig, clearUserAiConfig } from './aiConfig'
 
 beforeEach(() => {
   // 每个用例前清空 localStorage，避免上一次 save 的配置串味
@@ -55,7 +51,8 @@ it('用户未配置时回落到 .env', () => {
 it('均无配置时回落到代码默认值', () => {
   const cfg = resolveAiConfig()
   expect(cfg.apiKey).toBe('')
-  expect(cfg.chatModel).toBe('deepseek-v4-flash')
+  // 🔧 修复：默认模型已改为 deepseek-chat（60c6e6b），测试预期同步
+  expect(cfg.chatModel).toBe('deepseek-chat')
   expect(cfg.baseURL).toBe('https://api.deepseek.com')
   expect(cfg.mindmapModel).toBe('')
 })

@@ -500,7 +500,13 @@
               <!-- chats: 修复本地优先按钮漏绑定的 @click（之前没绑定，点了没反应） -->
               <div v-if="supportsFsaa" class="upload-tip">
                 <button class="upload-trigger" @click="addViaHandle">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 18 14" height="20" width="20">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 18 14"
+                    height="20"
+                    width="20"
+                  >
                     <path
                       fill="#FFA000"
                       d="M16.2 1.75H8.1L6.3 0H1.8C0.81 0 0 0.7875 0 1.75V12.25C0 13.2125 0.81 14 1.8 14H15.165L18 9.1875V3.5C18 2.5375 17.19 1.75 16.2 1.75Z"
@@ -513,14 +519,22 @@
                   <span>添加本地文件（本地优先）</span>
                 </button>
                 <div class="upload-pop">
-                  <p>只记录文件位置，内容不出本机。图片会抄一份快照进浏览器私有存储，重启后预览不丢。</p>
+                  <p>
+                    只记录文件位置，内容不出本机。图片会抄一份快照进浏览器私有存储，重启后预览不丢。
+                  </p>
                   <p class="up-fmt">支持 JPG / PNG / GIF / WebP / PDF</p>
                 </div>
               </div>
               <!-- 兼容模式：Firefox 等不支持 FSAA 时，降级为把内容转 Base64 入库 -->
               <div class="upload-tip">
                 <button class="upload-trigger" @click="triggerFilePicker">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" height="20" width="20">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    height="20"
+                    width="20"
+                  >
                     <path
                       d="M12 15V5m0 0-4 4m4-4 4 4"
                       stroke="#8E8E8E"
@@ -528,7 +542,12 @@
                       stroke-linecap="round"
                       stroke-linejoin="round"
                     ></path>
-                    <path d="M4 20h16" stroke="#8E8E8E" stroke-width="2" stroke-linecap="round"></path>
+                    <path
+                      d="M4 20h16"
+                      stroke="#8E8E8E"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    ></path>
                   </svg>
                   <span>上传附件（兼容）</span>
                 </button>
@@ -536,7 +555,9 @@
                   <p v-if="supportsFsaa">
                     备用通道：文件内容转 Base64 直接存进本地数据库，任何浏览器都能用。
                   </p>
-                  <p v-else>当前浏览器不支持本地优先，已自动用兼容模式：文件内容转 Base64 存进本地数据库。</p>
+                  <p v-else>
+                    当前浏览器不支持本地优先，已自动用兼容模式：文件内容转 Base64 存进本地数据库。
+                  </p>
                   <p class="up-fmt">支持 JPG / PNG / GIF / WebP / PDF</p>
                 </div>
               </div>
@@ -1191,7 +1212,9 @@ async function resolveHandleImage(att: Attachment, needsAuth: string[]): Promise
       // 快照没抄过、或原文件 lastModified/size 变了 = 该重抄（旧附件在这里自动补快照）
       if (snap?.lastModified !== file.lastModified || snap?.size !== file.size) {
         const meta = await saveSnapshot(att.id, file)
-        if (meta) void store.updateAttachmentSnapshot(item.value.id, att.id, meta)
+        // 🔧 修复：KnowledgeItem.id 是可选字段（number | undefined），store 要求 number——补判空
+        if (meta && item.value.id != null)
+          void store.updateAttachmentSnapshot(item.value.id, att.id, meta)
       }
       return file
     } catch {
@@ -1221,7 +1244,9 @@ async function reauthorizeAttachment(att: Attachment) {
   try {
     const file = await handle.getFile()
     const meta = await saveSnapshot(att.id, file)
-    if (meta) await store.updateAttachmentSnapshot(item.value.id, att.id, meta)
+    // 🔧 修复：同上——item.value.id 判空过编译
+    if (meta && item.value.id != null)
+      await store.updateAttachmentSnapshot(item.value.id, att.id, meta)
     await loadItem(false) // 重新解析预览
     showSuccess('已重新授权，图片预览恢复')
   } catch (error) {
