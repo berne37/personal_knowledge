@@ -275,8 +275,8 @@ defineExpose({ openWelcome })
   width: 32px;
   height: 32px;
   border-radius: var(--radius-md);
-  background: var(--color-primary-light);
-  color: var(--color-primary-dark);
+  background: var(--color-bg-hover);
+  color: var(--color-text);
   font-weight: 600;
   font-size: var(--font-size-sm);
   display: flex;
@@ -349,10 +349,12 @@ defineExpose({ openWelcome })
   justify-content: flex-end;
 }
 
-/* ---------- 按钮（复用设计令牌，和全局风格一致） ---------- */
+/* ---------- 按钮（对齐全站按钮约定：不上彩色，强调用深色实心，同 .btn-outline.btn-solid） ---------- */
 .ob-btn-primary {
   border: none;
-  background: var(--color-primary);
+  /* 🔧 2026-10-17 原来 var(--color-primary) 是亮蓝实心，和全站「按钮尽量不带颜色」的
+       约定冲突——现在强调态统一用深色实心（--color-text），主次靠明暗对比区分 */
+  background: var(--color-text);
   color: #fff;
   padding: 8px 18px;
   border-radius: var(--radius-md);
@@ -361,7 +363,7 @@ defineExpose({ openWelcome })
   transition: background var(--transition-fast);
 }
 .ob-btn-primary:hover {
-  background: var(--color-primary-hover);
+  background: var(--color-text-secondary);
 }
 .ob-btn-text {
   border: none;

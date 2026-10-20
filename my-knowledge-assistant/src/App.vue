@@ -45,7 +45,7 @@ const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
 
       <!-- 侧边栏底部：随时重看新手引导 -->
       <div class="sidebar-footer">
-        <button class="guide-btn" @click="onboardingRef?.openWelcome()">新手引导</button>
+        <button class="btn-outline guide-btn" @click="onboardingRef?.openWelcome()">新手引导</button>
       </div>
     </nav>
 
@@ -80,19 +80,11 @@ const onboardingRef = ref<InstanceType<typeof OnboardingGuide> | null>(null)
   padding-top: var(--spacing-md);
   border-top: 1px solid var(--color-bg-border);
 }
+/* 🔧 2026-10-17 按钮本体样式换成全局 .btn-outline（白底细边深字），这里只留宽度撑满。
+     原来的蓝色描边定制样式（--color-primary 边框 + primary-light 悬停）与「按钮尽量不上彩色」
+     的全站约定冲突，已删除 */
 .guide-btn {
   width: 100%;
-  border: 1px solid var(--color-primary);
-  background: transparent;
-  color: var(--color-primary-dark);
-  padding: 8px 0;
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-md);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-.guide-btn:hover {
-  background: var(--color-primary-light);
 }
 
 ul {

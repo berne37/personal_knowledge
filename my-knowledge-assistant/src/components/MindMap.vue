@@ -12,6 +12,13 @@ import Export from 'simple-mind-map/src/plugins/Export.js'
 MindMapLib.usePlugin(Export)
 import type { MindMapNode } from '@/services/mindMap'
 
+// chats: 配色对齐设计令牌——simple-mind-map 的主题配置是 JS 对象不是 CSS，
+// 读不到 var(--color-primary)，只能写与 tokens.css 同值的字面量（同 ProjectGraph 状态色的做法）。
+// 改令牌色值时记得同步这三行。
+const PRIMARY = '#3b82f6'
+const TEXT = '#2c3e50'
+const TEXT_SECONDARY = '#606266'
+
 const props = defineProps<{
   data: MindMapNode | null
 }>()
@@ -86,11 +93,32 @@ function doRender(data: MindMapNode) {
       el: container,
       data: data,
       layout: 'logicalStructure', // 逻辑结构图（子节点向右展开）
-      theme: 'primary', // 主题色
-      // chats: 主题默认把 backgroundColor('#fafafa') 以内联样式写到容器上（Style.js 的
-      // setBackgroundStyle），这就是导图外面那层「基础卡片」——内联样式优先级高于任何
-      // 选择器，CSS 里写 background: transparent 压不住，只能从主题配置这头关掉。
-      themeConfig: { backgroundColor: 'transparent' },
+      theme: 'default', // 只能填库已注册的主题名（只有 default），配色靠下面 themeConfig 覆盖
+      // chats: 配色对齐全站设计令牌（tokens.css）。原写法 theme: 'primary' 是个不存在的
+      // 主题名，实际一直走 default 主题——根节点/连线是库自带的青绿色 #549688，
+      // 和主色 #3b82f6 完全是两套色。这里按「根节点主色实心、二级白底蓝边、
+      // 下级文字降一档」覆盖，与知识库卡片的层次一致。
+      themeConfig: {
+        backgroundColor: 'transparent',
+        // chats: 主题默认把 backgroundColor('#fafafa') 以内联样式写到容器上（Style.js 的
+        // setBackgroundStyle），这就是导图外面那层「基础卡片」——内联样式优先级高于任何
+        // 选择器，CSS 里写 background: transparent 压不住，只能从主题配置这头关掉。
+        lineColor: PRIMARY, // 连线
+        generalizationLineColor: PRIMARY, // 概要连线
+        root: {
+          fillColor: PRIMARY, // 根节点 = 主色实心
+          borderRadius: 8,
+        },
+        second: {
+          fillColor: '#fff', // 二级节点 = 白底卡片
+          color: TEXT,
+          borderColor: PRIMARY,
+          borderRadius: 8,
+        },
+        node: {
+          color: TEXT_SECONDARY, // 三级及以下文字降一档
+        },
+      },
       enableFreeDrag: true, // 允许拖拽单个节点
       // chats: 视图的平移/缩放完全交给库内部机制，不再自己量尺寸、算偏移——
       // 之前那套「量包围盒 + setTransformData」和库的内部变换互相打架，
